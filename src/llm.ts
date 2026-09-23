@@ -91,7 +91,8 @@ export function resolveLlmConfig(input: Partial<LlmConfig>): LlmConfig {
  * 调用 OpenAI 兼容 chat/completions。
  *
  * 兼容性降级(遇 400/422/404 自动推进):
- * 1. json 约束 + 图片  -> 2. 无 json 约束 + 图片  -> 3. json 约束 + 无图  -> 4. 均不带
+ * - 含图片: 1. json 约束 + 图片  -> 2. 无 json 约束 + 图片  -> 3. json 约束 + 无图  -> 4. 均不带
+ * - 无图片: 1. json 约束  -> 2. 无 json 约束
  * 覆盖: 不支持 response_format 的 API、不支持视觉输入的模型。
  * 认证错误(401/403)与网络/超时错误直接抛出, 不做无谓重试。
  */
@@ -103,12 +104,13 @@ export async function callLlm(env: Env, messages: ChatMessage[], config: Partial
   const hasImages = messages.some(
     (m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url')
   );
-  const strategies: Strategy[] = [
-    { json: true, vision: hasImages },
-    { json: false, vision: hasImages },
+  const textOnly: Strategy[] = [
     { json: true, vision: false },
     { json: false, vision: false }
   ];
+  const strategies: Strategy[] = hasImages
+    ? [{ json: true, vision: true }, { json: false, vision: true }, ...textOnly]
+    : textOnly;
 
   const started = Date.now();
   let attempts = 0;
