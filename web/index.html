@@ -1,9 +1,16 @@
 <!doctype html>
-<html lang="zh">
+<html lang="zh-CN" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <title>OCS Quiz 日志</title>
+    <script>
+      // 在首屏渲染前应用已保存的主题, 避免亮色用户看到暗色闪烁
+      try {
+        if (localStorage.getItem('ocs-quiz-theme') === 'light') document.documentElement.dataset.theme = 'light';
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
