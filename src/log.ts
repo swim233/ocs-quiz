@@ -16,14 +16,16 @@ const CREATE_TABLE_SQL = `CREATE TABLE IF NOT EXISTS logs (
   error TEXT NOT NULL DEFAULT '',
   prompt_tokens INTEGER NOT NULL DEFAULT 0,
   completion_tokens INTEGER NOT NULL DEFAULT 0,
-  cached_tokens INTEGER NOT NULL DEFAULT 0
+  cached_tokens INTEGER NOT NULL DEFAULT 0,
+  think_effort TEXT NOT NULL DEFAULT ''
 )`;
 
-/** 旧库(无 token 列)的幂等迁移: 重复列报错会被忽略 */
+/** 旧库(无 token / think_effort 列)的幂等迁移: 重复列报错会被忽略 */
 const MIGRATIONS = [
   'ALTER TABLE logs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE logs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0',
-  'ALTER TABLE logs ADD COLUMN cached_tokens INTEGER NOT NULL DEFAULT 0'
+  'ALTER TABLE logs ADD COLUMN cached_tokens INTEGER NOT NULL DEFAULT 0',
+  "ALTER TABLE logs ADD COLUMN think_effort TEXT NOT NULL DEFAULT ''"
 ];
 
 let schemaReady = false;
@@ -61,6 +63,8 @@ export interface SearchLog {
   promptTokens: number;
   completionTokens: number;
   cachedTokens: number;
+  /** 请求携带的思考强度, 未携带为空串 */
+  thinkEffort: string;
 }
 
 export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
@@ -68,8 +72,8 @@ export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
   if (!(await ensureSchema(env))) return;
   try {
     await env.DB.prepare(
-      `INSERT INTO logs (ts, question_type, title, options, images, model, answers, reason, latency_ms, status, error, prompt_tokens, completion_tokens, cached_tokens)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO logs (ts, question_type, title, options, images, model, answers, reason, latency_ms, status, error, prompt_tokens, completion_tokens, cached_tokens, think_effort)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         new Date().toISOString(),
@@ -85,7 +89,8 @@ export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
         entry.error.slice(0, 1000),
         entry.promptTokens,
         entry.completionTokens,
-        entry.cachedTokens
+        entry.cachedTokens,
+        entry.thinkEffort.slice(0, 32)
       )
       .run();
   } catch (err) {

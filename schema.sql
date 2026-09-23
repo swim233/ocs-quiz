@@ -13,5 +13,6 @@ CREATE TABLE IF NOT EXISTS logs (
   error TEXT NOT NULL DEFAULT '',
   prompt_tokens INTEGER NOT NULL DEFAULT 0,
   completion_tokens INTEGER NOT NULL DEFAULT 0,
-  cached_tokens INTEGER NOT NULL DEFAULT 0
+  cached_tokens INTEGER NOT NULL DEFAULT 0,
+  think_effort TEXT NOT NULL DEFAULT ''
 );

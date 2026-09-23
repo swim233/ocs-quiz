@@ -88,7 +88,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       error: '未授权: 缺少或错误的 Bearer token',
       promptTokens: 0,
       completionTokens: 0,
-      cachedTokens: 0
+      cachedTokens: 0,
+      thinkEffort: ''
     });
     return json({ code: 1, msg: '未授权' }, 401);
   }
@@ -110,7 +111,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       error: '请求体必须是 JSON',
       promptTokens: 0,
       completionTokens: 0,
-      cachedTokens: 0
+      cachedTokens: 0,
+      thinkEffort: ''
     });
     return json({ code: 1, msg: '请求体必须是 JSON' }, 400);
   }
@@ -118,6 +120,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   const title = typeof body.title === 'string' ? body.title.slice(0, 3000) : '';
   const options = typeof body.options === 'string' ? body.options.slice(0, 6000) : '';
   const type = typeof body.type === 'string' && body.type ? body.type : 'unknown';
+  const thinkEffort = typeof body.thinkEffort === 'string' ? body.thinkEffort.trim() : '';
   if (!title.trim() && !options.trim()) {
     await logSearch(env, {
       questionType: type,
@@ -132,7 +135,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       error: '题目为空',
       promptTokens: 0,
       completionTokens: 0,
-      cachedTokens: 0
+      cachedTokens: 0,
+      thinkEffort
     });
     return json({ code: 1, msg: '题目为空' });
   }
@@ -143,7 +147,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
     apiKey: typeof body.apiKey === 'string' && body.apiKey ? body.apiKey : undefined,
     baseUrl: typeof body.baseUrl === 'string' && body.baseUrl ? body.baseUrl : undefined,
     model: typeof body.model === 'string' && body.model ? body.model : undefined,
-    thinkEffort: typeof body.thinkEffort === 'string' && body.thinkEffort.trim() ? body.thinkEffort.trim() : undefined
+    thinkEffort: thinkEffort || undefined
   };
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt() },
@@ -170,7 +174,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       error: '',
       promptTokens: usage.promptTokens,
       completionTokens: usage.completionTokens,
-      cachedTokens: usage.cachedTokens
+      cachedTokens: usage.cachedTokens,
+      thinkEffort
     });
     if (status === 'no_answer') {
       return json({ code: 1, msg: `无法作答: ${reason || '模型未给出答案'}` });
@@ -205,7 +210,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       error: message,
       promptTokens: 0,
       completionTokens: 0,
-      cachedTokens: 0
+      cachedTokens: 0,
+      thinkEffort
     });
     return json({ code: 1, msg: `答题失败: ${message.slice(0, 300)}` });
   }
