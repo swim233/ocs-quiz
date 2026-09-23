@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   EFFORT_STEPS,
-  NEAR_TIMEOUT_MS,
-  SLOW_MS,
+  LATENCY_LABEL,
   STATUS_LABEL,
   analyzeRow,
   formatLatency,
+  latencyLevel,
   plainText,
   timeParts,
   typeLabel,
@@ -20,8 +20,11 @@ const CALLOUT_TITLE: Record<string, string> = {
   unauthorized: '未授权'
 };
 
-/** 右侧详情; 父组件以 row.id 作 key, 切换记录时重置内部状态 */
-export function Detail({ row, onZoom }: { row: LogRow; onZoom: (t: ZoomTarget) => void }) {
+/**
+ * 右侧详情; 父组件以 row.id 作 key, 切换记录时重置内部状态。
+ * timeoutMs: 服务端当前的 LLM_TIMEOUT_MS, 未知时为 0 (不显示接近超时提示)
+ */
+export function Detail({ row, timeoutMs, onZoom }: { row: LogRow; timeoutMs: number; onZoom: (t: ZoomTarget) => void }) {
   const [rawOpen, setRawOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const view = useMemo(() => analyzeRow(row), [row]);
@@ -45,6 +48,7 @@ export function Detail({ row, onZoom }: { row: LogRow; onZoom: (t: ZoomTarget) =
   const effort = row.think_effort || '默认';
   const steps = EFFORT_STEPS.includes(effort) ? EFFORT_STEPS : [...EFFORT_STEPS, effort];
   const calloutText = row.status === 'no_answer' ? row.reason || '模型未给出答案' : row.error;
+  const level = latencyLevel(row.latency_ms, timeoutMs);
   const cacheRate = row.prompt_tokens > 0 ? `(${Math.round((row.cached_tokens / row.prompt_tokens) * 100)}%)` : '';
 
   return (
@@ -140,7 +144,12 @@ export function Detail({ row, onZoom }: { row: LogRow; onZoom: (t: ZoomTarget) =
           </div>
           <div className="meta-item">
             <span>耗时</span>
-            <span className={`meta-value${row.latency_ms >= SLOW_MS ? ' warn' : ''}`}>{formatLatency(row.latency_ms)}</span>
+            <span
+              className={`meta-value${level ? ` lat-${level}` : ''}`}
+              title={level ? LATENCY_LABEL[level] : undefined}
+            >
+              {formatLatency(row.latency_ms)}
+            </span>
           </div>
           <div className="meta-item">
             <span>图片</span>
@@ -158,8 +167,10 @@ export function Detail({ row, onZoom }: { row: LogRow; onZoom: (t: ZoomTarget) =
               {row.cached_tokens} <span className="muted small">{cacheRate}</span>
             </span>
           </div>
-          {row.latency_ms >= NEAR_TIMEOUT_MS && (
-            <span className="span2 warn small">耗时接近 30 s 超时上限（LLM_TIMEOUT_MS），提高思考强度前建议调大</span>
+          {level === 'near-timeout' && (
+            <span className="span2 small lat-near-timeout">
+              耗时接近 {Math.round(timeoutMs / 1000)} s 超时上限（LLM_TIMEOUT_MS），提高思考强度前建议调大
+            </span>
           )}
           <div className="effort span2">
             <div className="effort-head">

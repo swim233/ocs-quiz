@@ -13,9 +13,14 @@ export type ContentPart =
  * 单次 LLM 请求的默认超时 (可用 LLM_TIMEOUT_MS 覆盖)。
  * Workers 对 HTTP 请求没有墙钟时长上限, 等待 fetch 也不计入 CPU 时间;
  * 实际约束是 OCS 的「搜题最大耗时」(高级设置, 默认 120s, 范围 10-180s; 4.11.8 之前固定 30s)。
+ * 取略低于 120s 的 110s: 超时由 Worker 先返回 msg, OCS 面板才能显示原因, 而不是「题库连接失败」。
  * 超时属于网络错误, 不会触发降级重试。
  */
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 110000;
+
+export function llmTimeoutMs(env: Env): number {
+  return parseInt(env.LLM_TIMEOUT_MS || '', 10) || DEFAULT_TIMEOUT_MS;
+}
 
 export function buildSystemPrompt(): string {
   return [
@@ -109,7 +114,7 @@ export function resolveLlmConfig(input: Partial<LlmConfig>): LlmConfig {
 export async function callLlm(env: Env, messages: ChatMessage[], config: Partial<LlmConfig>): Promise<LlmResult> {
   const resolved = resolveLlmConfig(config);
   const temperature = parseFloat(env.LLM_TEMPERATURE || '0') || 0;
-  const timeoutMs = parseInt(env.LLM_TIMEOUT_MS || '', 10) || DEFAULT_TIMEOUT_MS;
+  const timeoutMs = llmTimeoutMs(env);
 
   const hasImages = messages.some(
     (m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url')

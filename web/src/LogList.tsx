@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import {
-  SLOW_MS,
+  LATENCY_LABEL,
   STATUS_LABEL,
   analyzeRow,
   dayLabel,
   formatLatency,
+  latencyLevel,
   plainText,
   timeParts,
   typeLabel,
@@ -57,10 +58,11 @@ interface ItemProps {
   index: number;
   /** 选中时是否滚动到可见; 跟随最新记录时不滚动, 以免把用户正在浏览的列表拉回顶部 */
   scrollOnSelect: boolean;
+  timeoutMs: number;
   onSelect: (id: number) => void;
 }
 
-function ListItem({ row, on, fresh, index, scrollOnSelect, onSelect }: ItemProps) {
+function ListItem({ row, on, fresh, index, scrollOnSelect, timeoutMs, onSelect }: ItemProps) {
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (on && scrollOnSelect) ref.current?.scrollIntoView({ block: 'nearest' });
@@ -69,6 +71,7 @@ function ListItem({ row, on, fresh, index, scrollOnSelect, onSelect }: ItemProps
   const { summary } = analyzeRow(row);
   const failed = row.status === 'error' || row.status === 'unauthorized';
   const effort = row.think_effort || '';
+  const level = latencyLevel(row.latency_ms, timeoutMs);
   return (
     <button
       ref={ref}
@@ -98,7 +101,9 @@ function ListItem({ row, on, fresh, index, scrollOnSelect, onSelect }: ItemProps
         {!failed && row.latency_ms > 0 && (
           <>
             {' · '}
-            <span className={row.latency_ms >= SLOW_MS ? 'warn' : undefined}>{formatLatency(row.latency_ms)}</span>
+            <span className={level ? `lat-${level}` : undefined} title={level ? LATENCY_LABEL[level] : undefined}>
+              {formatLatency(row.latency_ms)}
+            </span>
           </>
         )}
       </span>
@@ -128,6 +133,7 @@ export function LogList({
   following,
   freshAfter,
   refreshedAt,
+  timeoutMs,
   onSelect,
   loading
 }: {
@@ -138,6 +144,8 @@ export function LogList({
   following: boolean;
   freshAfter: number;
   refreshedAt: string;
+  /** 服务端的 LLM_TIMEOUT_MS, 用于耗时着色; 未知时为 0 */
+  timeoutMs: number;
   onSelect: (id: number) => void;
   loading: boolean;
 }) {
@@ -160,6 +168,7 @@ export function LogList({
                 fresh={row.id > freshAfter}
                 index={index++}
                 scrollOnSelect={!following}
+                timeoutMs={timeoutMs}
                 onSelect={onSelect}
               />
             ))}

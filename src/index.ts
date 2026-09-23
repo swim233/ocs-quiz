@@ -1,6 +1,6 @@
 import { authorize, handleOptions, json } from './http';
 import { extractImageUrls } from './images';
-import { buildSystemPrompt, buildUserContent, callLlm, type ChatMessage } from './llm';
+import { buildSystemPrompt, buildUserContent, callLlm, llmTimeoutMs, type ChatMessage } from './llm';
 import { logSearch, queryLogs } from './log';
 import { buildOcsConfig, TOKEN_PLACEHOLDER } from './ocs-config';
 import { lettersToOptionTexts, parseLlmAnswer } from './parse';
@@ -56,7 +56,8 @@ export default {
     if (path === '/api/logs' && request.method === 'GET') {
       if (!authorize(request, env.AUTH_TOKEN)) return json({ code: 1, msg: '未授权' }, 401);
       const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 200);
-      return json({ code: 0, data: await queryLogs(env, limit) });
+      // timeoutMs 供日志页判断耗时是否接近超时上限
+      return json({ code: 0, data: await queryLogs(env, limit), timeoutMs: llmTimeoutMs(env) });
     }
     if (path === '/logs') {
       // 旧的服务端渲染日志页已由 React 前端 (/) 取代, 保留跳转兼容旧书签

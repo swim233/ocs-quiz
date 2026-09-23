@@ -36,10 +36,26 @@ const TYPE_LABEL: Record<string, string> = {
 
 export const typeLabel = (type: string) => TYPE_LABEL[type] ?? type;
 
-/** 耗时达到该值标黄 */
-export const SLOW_MS = 5000;
-/** 接近默认 LLM_TIMEOUT_MS (30s) 时提示 */
-export const NEAR_TIMEOUT_MS = 20000;
+/** 耗时分级着色: 较慢标黄, 很慢标橙, 接近超时上限 (LLM_TIMEOUT_MS 的 2/3) 标红并提示 */
+const SLOW_MS = 5000;
+const VERY_SLOW_MS = 20000;
+const NEAR_TIMEOUT_RATIO = 2 / 3;
+
+export type LatencyLevel = 'slow' | 'very-slow' | 'near-timeout';
+
+export const LATENCY_LABEL: Record<LatencyLevel, string> = {
+  slow: '较慢（≥ 5 s）',
+  'very-slow': '很慢（≥ 20 s）',
+  'near-timeout': '接近超时上限'
+};
+
+/** timeoutMs 为服务端的 LLM_TIMEOUT_MS, 未知时传 0 (不判断接近超时) */
+export function latencyLevel(ms: number, timeoutMs: number): LatencyLevel | null {
+  if (timeoutMs > 0 && ms >= timeoutMs * NEAR_TIMEOUT_RATIO) return 'near-timeout';
+  if (ms >= VERY_SLOW_MS) return 'very-slow';
+  if (ms >= SLOW_MS) return 'slow';
+  return null;
+}
 
 export const EFFORT_STEPS = ['默认', 'none', 'low', 'high', 'max'];
 

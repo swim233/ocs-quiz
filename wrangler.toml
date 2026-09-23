@@ -10,7 +10,7 @@ binding = "ASSETS"
 # LLM 的 apiKey / baseUrl / model 由调用方随请求携带 (BYOK), 服务端不保存
 [vars]
 LLM_TEMPERATURE = "0"
-LLM_TIMEOUT_MS = "30000"
+LLM_TIMEOUT_MS = "110000"
 VISION_ENABLED = "true"
 LOG_ENABLED = "true"
 

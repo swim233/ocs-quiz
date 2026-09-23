@@ -80,6 +80,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [limit, setLimit] = useState(50);
   const [refreshedAt, setRefreshedAt] = useState('');
+  const [timeoutMs, setTimeoutMs] = useState(0);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -116,7 +117,7 @@ export default function App() {
         setError('Token 无效, 请重新登录');
         return;
       }
-      const data = (await res.json()) as { code: number; msg?: string; data?: LogRow[] };
+      const data = (await res.json()) as { code: number; msg?: string; data?: LogRow[]; timeoutMs?: number };
       if (!latest()) return;
       if (data.code !== 0 || !data.data) {
         setError(data.msg || '加载失败');
@@ -128,6 +129,7 @@ export default function App() {
         setRows(data.data);
         setFreshAfter(prev.length ? Math.max(...prev.map((r) => r.id)) : Infinity);
       }
+      setTimeoutMs(data.timeoutMs ?? 0);
       setError('');
       setRefreshedAt(timeParts(new Date()).time);
     } catch (e) {
@@ -348,12 +350,13 @@ export default function App() {
           following={selectedId === null}
           freshAfter={freshAfter}
           refreshedAt={refreshedAt}
+          timeoutMs={timeoutMs}
           onSelect={setSelectedId}
           loading={loading}
         />
         <main className="detail">
           {selected ? (
-            <Detail key={selected.id} row={selected} onZoom={setZoom} />
+            <Detail key={selected.id} row={selected} timeoutMs={timeoutMs} onZoom={setZoom} />
           ) : (
             <p className="detail-empty">{loading ? '加载中…' : '暂无日志记录'}</p>
           )}

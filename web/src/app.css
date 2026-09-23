@@ -21,6 +21,7 @@
   --chip: #f4f1ea;
   --matte: #f4f1ea;
   --warn: #f2c46d;
+  --warn-strong: #ff9f5a;
   --ok-bg: #10291a;
   --ok-fg: #7fdc95;
   --na-bg: #2d2412;
@@ -55,6 +56,7 @@
   --chip: #f6f4ee;
   --matte: #ffffff;
   --warn: #8a5a00;
+  --warn-strong: #b54708;
   --ok-bg: #e7f5e7;
   --ok-fg: #0a6b0a;
   --na-bg: #fdf1d6;
@@ -124,9 +126,23 @@ a {
   font-size: 13px;
 }
 
-.warn {
-  color: var(--warn);
+/* 耗时分级: 较慢 / 很慢 / 接近超时上限 */
+.lat-slow,
+.lat-very-slow,
+.lat-near-timeout {
   font-weight: 500;
+}
+
+.lat-slow {
+  color: var(--warn);
+}
+
+.lat-very-slow {
+  color: var(--warn-strong);
+}
+
+.lat-near-timeout {
+  color: var(--err-fg);
 }
 
 .sr-only {
