@@ -21,7 +21,7 @@ export function handleOptions(): Response {
 }
 
 /**
- * 若配置了 AUTH_TOKEN, 要求请求携带 Authorization: Bearer <token>。
+ * 若配置了 token, 要求请求携带 Authorization: Bearer <token>; 未配置时放行。
  * 传入 url 时额外接受 ?token= 参数 (浏览器直接打开或 OCS 从 URL 导入配置时无法带请求头)。
  */
 export function authorize(request: Request, token?: string, url?: URL): boolean {

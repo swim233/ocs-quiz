@@ -10,7 +10,10 @@ export interface Env {
   LLM_TIMEOUT_MS?: string;
   VISION_ENABLED?: string;
   LOG_ENABLED?: string;
+  /** 搜题请求 (/api/search) 与 /ocs-config.json 的鉴权 token */
   AUTH_TOKEN?: string;
+  /** 日志页 (/api/logs) 的鉴权 token, 与 AUTH_TOKEN 相互独立 */
+  WEBUI_TOKEN?: string;
   DB?: D1Database;
   /** Workers Static Assets 绑定 (React 前端) */
   ASSETS?: Fetcher;
@@ -54,7 +57,11 @@ export default {
       return handleSearch(request, env);
     }
     if (path === '/api/logs' && request.method === 'GET') {
-      if (!authorize(request, env.AUTH_TOKEN)) return json({ code: 1, msg: '未授权' }, 401);
+      // 日志含题目与请求方 IP: 未配置 WEBUI_TOKEN 时拒绝访问, 而不是像 AUTH_TOKEN 那样放行
+      if (!env.WEBUI_TOKEN) {
+        return json({ code: 1, msg: '服务端未配置 WEBUI_TOKEN, 请执行 wrangler secret put WEBUI_TOKEN' }, 403);
+      }
+      if (!authorize(request, env.WEBUI_TOKEN)) return json({ code: 1, msg: '未授权' }, 401);
       const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 200);
       // timeoutMs 供日志页判断耗时是否接近超时上限
       return json({ code: 0, data: await queryLogs(env, limit), timeoutMs: llmTimeoutMs(env) });

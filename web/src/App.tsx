@@ -111,10 +111,13 @@ export default function App() {
     try {
       const res = await fetch(`/api/logs?limit=${lim}`, { headers: { Authorization: `Bearer ${t}` } });
       if (!latest()) return;
-      if (res.status === 401) {
+      // 401: token 错误; 403: 服务端未配置 WEBUI_TOKEN。两种情况都回到登录页, 不再继续轮询
+      if (res.status === 401 || res.status === 403) {
+        const body = (await res.json().catch(() => ({}))) as { msg?: string };
+        if (!latest()) return;
         writeStorage(TOKEN_KEY, null);
         setToken('');
-        setError('Token 无效, 请重新登录');
+        setError(res.status === 403 && body.msg ? body.msg : 'Token 无效, 请重新登录');
         return;
       }
       const data = (await res.json()) as { code: number; msg?: string; data?: LogRow[]; timeoutMs?: number };
@@ -256,7 +259,7 @@ export default function App() {
             进入
           </button>
         </form>
-        <p className="hint">Token 为部署时配置的 AUTH_TOKEN; 若 Worker 未配置, 填任意值即可进入。</p>
+        <p className="hint">Token 为部署时配置的 WEBUI_TOKEN, 与 OCS 题库配置中的 AUTH_TOKEN 相互独立。</p>
         {error && <p className="error-text">{error}</p>}
       </main>
     );

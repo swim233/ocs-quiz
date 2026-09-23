@@ -81,16 +81,24 @@ npm run deploy
 
 部署成功后会输出 Worker 地址，形如 `https://ocs-quiz.<你的子域>.workers.dev`。
 
-**5. 设置访问 Token（强烈建议）**
+**5. 设置访问 Token**
+
+项目有两个相互独立的 Token：
+
+| Token | 用途 | 未设置时 |
+| --- | --- | --- |
+| `AUTH_TOKEN` | 搜题请求鉴权，填在 OCS 题库配置的 `Authorization` 中 | 任何知道地址的人都能调用搜题接口 |
+| `WEBUI_TOKEN` | 日志页登录 | 日志页无法访问 |
 
 ```bash
 npx wrangler secret put AUTH_TOKEN
+npx wrangler secret put WEBUI_TOKEN
 ```
 
-按提示输入一个足够长的随机字符串，可以用 `openssl rand -hex 16` 生成。设置后立即生效，不需要重新部署。
+按提示分别输入两个**不同的**、足够长的随机字符串，可以用 `openssl rand -hex 16` 生成。设置后立即生效，不需要重新部署。两个 Token 分开以后，把 OCS 题库配置分享给别人时，对方也看不到你的日志。
 
 > [!WARNING]
-> 不设置 `AUTH_TOKEN` 时，任何知道地址的人都能查看你的日志页，也能把你的 Worker 当作中转站使用。
+> 不设置 `AUTH_TOKEN` 时，任何知道地址的人都能把你的 Worker 当作中转站使用，占用你的 Cloudflare 免费额度，日志也会被他人的请求刷满。
 
 **6. 检查部署**
 
@@ -259,9 +267,9 @@ OCS 官方提供一个 `@connect` 中带 `*` 通配符的版本，可以请求�
 
 ## 日志页
 
-浏览器打开 `https://<你的域名>/`，输入 `AUTH_TOKEN` 登录，就能看到最近的答题记录，包括题目、选项、图片、模型给出的答案与理由、耗时、token 用量和请求方 IP。日志页支持按状态筛选、全文搜索，默认每 3 秒自动刷新。
+浏览器打开 `https://<你的域名>/`，输入 `WEBUI_TOKEN` 登录（注意不是 `AUTH_TOKEN`），就能看到最近的答题记录，包括题目、选项、图片、模型给出的答案与理由、耗时、token 用量和请求方 IP。日志页支持按状态筛选、全文搜索，默认每 3 秒自动刷新。
 
-日志中不包含 API Key。
+日志中不包含 API Key。没有设置 `WEBUI_TOKEN` 时，日志页会提示「服务端未配置 WEBUI_TOKEN」，按提示设置即可。
 
 ---
 
@@ -333,6 +341,7 @@ curl -X POST https://<你的域名>/api/search \
 ```bash
 # .dev.vars（已加入 .gitignore）
 AUTH_TOKEN=dev-token
+WEBUI_TOKEN=dev-webui-token
 ```
 
 ```bash
