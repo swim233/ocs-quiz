@@ -3,9 +3,11 @@
  *
  * 行为:
  * - POST /v1/chat/completions: 若请求含 image_url 内容 -> 400 (模拟模型不支持视觉,
- *   触发 worker 的降级重试); 否则返回固定答案 {"answers":["B"],"reason":"stub answer"}。
+ *   触发 worker 的降级重试); 若题目含 NOANSWER -> 返回空答案 (验证「无法作答」路径);
+ *   否则返回固定答案 {"answers":["B"],"reason":"stub answer"}。
  * - GET /last: 返回收到的所有请求 (user 消息 + 请求头), 用于验证多模态 payload
  *   与 apiKey 是否真实传递。
+ * - GET /reset: 清空请求记录, 便于统计单次搜题触发的 LLM 调用次数。
  */
 import http from 'node:http';
 
@@ -37,10 +39,14 @@ const server = http.createServer((req, res) => {
         );
         return;
       }
+      const text = typeof userMsg?.content === 'string' ? userMsg.content : JSON.stringify(userMsg?.content ?? '');
+      const content = text.includes('NOANSWER')
+        ? '{"answers":[],"reason":"题目信息不足"}'
+        : '{"answers":["B"],"reason":"stub answer"}';
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
-          choices: [{ message: { content: '{"answers":["B"],"reason":"stub answer"}' } }],
+          choices: [{ message: { content } }],
           usage: {
             prompt_tokens: 120,
             completion_tokens: 30,
@@ -54,6 +60,12 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/last') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(received));
+    return;
+  }
+  if (req.method === 'GET' && req.url === '/reset') {
+    received.length = 0;
+    res.writeHead(204);
+    res.end();
     return;
   }
   res.writeHead(404);
