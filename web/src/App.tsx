@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Detail } from './Detail';
 import { LogList } from './LogList';
-import type { LogRow } from './format';
-import { IconImage, IconLogout, IconMoon, IconSearch, IconSun } from './icons';
+import { timeParts, type LogRow } from './format';
+import { IconImage, IconLogout, IconMoon, IconRefresh, IconSearch, IconSun } from './icons';
 import { Lightbox, type ZoomTarget } from './rich';
 
 const TOKEN_KEY = 'ocs-quiz-token';
 const THEME_KEY = 'ocs-quiz-theme';
+const AUTO_REFRESH_KEY = 'ocs-quiz-auto-refresh';
+const AUTO_REFRESH_MS = 3000;
 
 type Theme = 'dark' | 'light';
 type Filter = 'all' | 'ok' | 'no_answer' | 'failed' | 'images';
@@ -52,6 +55,13 @@ function matchesFilter(row: LogRow, filter: Filter): boolean {
   }
 }
 
+/** 日志只插入不修改, id 序列相同即内容相同 */
+function sameIds(a: LogRow[], b: LogRow[]): boolean {
+  return a.length === b.length && a.every((r, i) => r.id === b[i].id);
+}
+
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 function matchesQuery(row: LogRow, q: string): boolean {
   return [row.title, row.options, row.answers, row.reason, row.error, row.model].some((v) =>
     (v || '').toLowerCase().includes(q)
@@ -63,6 +73,9 @@ export default function App() {
   const [loginInput, setLoginInput] = useState(token);
   const [theme, setTheme] = useState<Theme>(() => (readStorage(THEME_KEY) === 'light' ? 'light' : 'dark'));
   const [rows, setRows] = useState<LogRow[]>([]);
+  /** id 大于该值的记录是实时刷新新到达的, 列表中高亮一次; 首次加载不高亮 */
+  const [freshAfter, setFreshAfter] = useState(Infinity);
+  const [autoRefresh, setAutoRefresh] = useState(() => readStorage(AUTO_REFRESH_KEY) !== 'off');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [limit, setLimit] = useState(50);
@@ -72,16 +85,31 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [zoom, setZoom] = useState<ZoomTarget | null>(null);
 
+  const rowsRef = useRef<LogRow[]>([]);
+  /** 每次请求递增; 只有最新一次请求的响应会被采用 (如切换条数时丢弃旧条数的轮询结果) */
+  const seqRef = useRef(0);
+  const busyRef = useRef(false);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     writeStorage(THEME_KEY, theme);
   }, [theme]);
 
-  const load = useCallback(async (t: string, lim: number) => {
-    setLoading(true);
-    setError('');
+  useEffect(() => writeStorage(AUTO_REFRESH_KEY, autoRefresh ? 'on' : 'off'), [autoRefresh]);
+
+  /** silent: 实时刷新的后台轮询, 不显示加载态, 也不在请求前清掉错误提示, 避免每 3 s 闪一次 */
+  const load = useCallback(async (t: string, lim: number, silent = false) => {
+    if (silent && busyRef.current) return;
+    const seq = ++seqRef.current;
+    const latest = () => seq === seqRef.current;
+    busyRef.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const res = await fetch(`/api/logs?limit=${lim}`, { headers: { Authorization: `Bearer ${t}` } });
+      if (!latest()) return;
       if (res.status === 401) {
         writeStorage(TOKEN_KEY, null);
         setToken('');
@@ -89,22 +117,46 @@ export default function App() {
         return;
       }
       const data = (await res.json()) as { code: number; msg?: string; data?: LogRow[] };
+      if (!latest()) return;
       if (data.code !== 0 || !data.data) {
         setError(data.msg || '加载失败');
         return;
       }
-      setRows(data.data);
-      setRefreshedAt(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+      const prev = rowsRef.current;
+      if (!sameIds(prev, data.data)) {
+        rowsRef.current = data.data;
+        setRows(data.data);
+        setFreshAfter(prev.length ? Math.max(...prev.map((r) => r.id)) : Infinity);
+      }
+      setError('');
+      setRefreshedAt(timeParts(new Date()).time);
     } catch (e) {
-      setError(String(e));
+      if (latest()) setError(String(e));
     } finally {
-      setLoading(false);
+      if (latest()) {
+        busyRef.current = false;
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     if (token) void load(token, limit);
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 实时刷新: 每 3 s 静默拉取一次; 标签页在后台时跳过, 切回前台立即刷新
+  useEffect(() => {
+    if (!token || !autoRefresh) return;
+    const tick = () => {
+      if (document.visibilityState === 'visible') void load(token, limit, true);
+    };
+    const timer = window.setInterval(tick, AUTO_REFRESH_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [token, limit, autoRefresh, load]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -134,19 +186,40 @@ export default function App() {
   }, [visible, selected, zoom]);
 
   const logout = () => {
+    // 作废进行中的请求, 其响应不再写回
+    seqRef.current++;
+    busyRef.current = false;
+    setLoading(false);
     writeStorage(TOKEN_KEY, null);
     setToken('');
+    rowsRef.current = [];
     setRows([]);
+    setFreshAfter(Infinity);
+    setRefreshedAt('');
+    setSelectedId(null);
+  };
+
+  // 主题切换做整页淡入淡出; 浏览器不支持 View Transitions 或用户偏好减少动效时直接切换
+  const toggleTheme = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    const apply = () => {
+      document.documentElement.dataset.theme = next;
+      flushSync(() => setTheme(next));
+    };
+    if ('startViewTransition' in document && !reducedMotion()) document.startViewTransition(apply);
+    else apply();
   };
 
   const themeToggle = (
     <button
       type="button"
       className="btn"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      onClick={toggleTheme}
       aria-label={theme === 'dark' ? '当前为暗色主题，切换到亮色' : '当前为亮色主题，切换到暗色'}
     >
-      {theme === 'dark' ? <IconMoon /> : <IconSun />}
+      <span key={theme} className="theme-icon">
+        {theme === 'dark' ? <IconMoon /> : <IconSun />}
+      </span>
       {theme === 'dark' ? '暗色' : '亮色'}
     </button>
   );
@@ -238,12 +311,29 @@ export default function App() {
         {themeToggle}
         <button
           type="button"
+          className="btn live"
+          aria-pressed={autoRefresh}
+          onClick={() => {
+            if (!autoRefresh) void load(token, limit, true);
+            setAutoRefresh(!autoRefresh);
+          }}
+          title={autoRefresh ? `每 ${AUTO_REFRESH_MS / 1000} 秒自动刷新，点击暂停` : '自动刷新已暂停，点击开启'}
+        >
+          <span className="live-dot" aria-hidden="true" />
+          实时刷新
+        </button>
+        <button
+          type="button"
           className="btn btn-primary"
           onClick={() => void load(token, limit)}
           disabled={loading}
+          aria-busy={loading}
           title={refreshedAt ? `更新于 ${refreshedAt}` : undefined}
         >
-          {loading ? '加载中…' : '刷新'}
+          <span className={`refresh-icon${loading ? ' spinning' : ''}`}>
+            <IconRefresh />
+          </span>
+          刷新
         </button>
         <button type="button" className="btn icon-btn" onClick={logout} aria-label="退出">
           <IconLogout />
@@ -255,6 +345,9 @@ export default function App() {
           rows={visible}
           total={rows.length}
           selectedId={selected?.id ?? null}
+          following={selectedId === null}
+          freshAfter={freshAfter}
+          refreshedAt={refreshedAt}
           onSelect={setSelectedId}
           loading={loading}
         />

@@ -152,10 +152,15 @@ a {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, filter 0.15s, transform 0.12s var(--ease);
 }
 
 .btn:hover {
   border-color: var(--text3);
+}
+
+button.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn:disabled {
@@ -228,18 +233,22 @@ select.btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 0 1 320px;
+  /* 顶栏放不下时先收窄搜索框, 再换行 */
+  flex: 1 1 200px;
   min-width: 200px;
+  max-width: 320px;
   height: 40px;
   padding: 0 14px;
   background: var(--input);
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text2);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .search:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .search input {
@@ -272,6 +281,15 @@ select.btn {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, transform 0.12s var(--ease);
+}
+
+.seg button:hover {
+  color: var(--text);
+}
+
+.seg button:active {
+  transform: scale(0.95);
 }
 
 .seg button[aria-pressed='true'] {
@@ -291,6 +309,7 @@ select.btn {
   padding: 10px 28px;
   background: var(--err-bg);
   color: var(--err-fg);
+  animation: drop 0.25s var(--ease) both;
 }
 
 /* ---------- 双栏布局 ---------- */
@@ -326,6 +345,7 @@ select.btn {
   font-size: 12px;
   color: var(--text2);
   background: var(--panel);
+  animation: fade-in 0.3s ease-out both;
 }
 
 .group-head strong {
@@ -346,6 +366,14 @@ select.btn {
   border-bottom: 1px solid var(--divider);
   background: transparent;
   cursor: pointer;
+  transition: background-color 0.15s, box-shadow 0.15s;
+  animation: rise 0.32s var(--ease) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 24ms);
+}
+
+/* 实时刷新新到达的记录: 左侧亮条与底色高亮后褪去 */
+.item.fresh {
+  animation: rise 0.32s var(--ease) both, fresh 2.4s ease-out;
 }
 
 .item:hover {
@@ -434,7 +462,9 @@ select.btn {
 .list-foot {
   padding: 12px 20px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 4px 12px;
   border-top: 1px solid var(--divider);
   font-size: 12px;
   color: var(--text2);
@@ -449,6 +479,26 @@ select.btn {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.detail > * {
+  animation: rise 0.3s var(--ease) both;
+}
+
+.detail > :nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.detail > :nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.detail > :nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.detail > :nth-child(n + 5) {
+  animation-delay: 160ms;
 }
 
 .detail-empty {
@@ -568,6 +618,7 @@ select.btn {
   border-color: var(--primary);
   background: var(--primary);
   color: #ffffff;
+  animation: bump 0.4s var(--ease) 0.15s both;
 }
 
 .option-text {
@@ -584,6 +635,7 @@ select.btn {
   font-size: 12px;
   font-weight: 500;
   color: var(--accent);
+  animation: pop-in 0.3s var(--ease) 0.2s both;
 }
 
 .blanks {
@@ -743,6 +795,7 @@ select.btn {
   background: var(--primary);
   color: #ffffff;
   font-weight: 600;
+  animation: bump 0.4s var(--ease) 0.25s both;
 }
 
 .code {
@@ -803,6 +856,11 @@ select.btn {
   background: var(--chip);
   line-height: 0;
   cursor: zoom-in;
+  transition: box-shadow 0.15s;
+}
+
+.img-inline:hover {
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .img-inline img {
@@ -831,6 +889,15 @@ select.btn {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--matte);
+  transition: border-color 0.15s, box-shadow 0.2s, transform 0.2s var(--ease);
+  /* 图片加载完成、确认为大图后才切到 img-block, 此时淡入 */
+  animation: fade-in 0.35s ease-out;
+}
+
+.img-block:hover img {
+  border-color: var(--accent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  transform: translateY(-2px);
 }
 
 .img-caption {
@@ -866,6 +933,7 @@ select.btn {
   align-items: center;
   justify-content: center;
   background: var(--overlay);
+  animation: fade-in 0.18s ease-out both;
 }
 
 .lightbox {
@@ -880,6 +948,7 @@ select.btn {
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  animation: zoom-in 0.24s var(--ease) both;
 }
 
 .lightbox-head {
@@ -921,6 +990,7 @@ select.btn {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
+  animation: rise 0.4s var(--ease) both;
 }
 
 .login-head {
@@ -949,6 +1019,13 @@ select.btn {
   border-radius: 10px;
   background: var(--input);
   color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.login input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .hint {
@@ -961,6 +1038,210 @@ select.btn {
 .error-text {
   margin: 0;
   color: var(--err-fg);
+  animation: shake 0.4s ease both;
+}
+
+/* ---------- 动效 ---------- */
+
+:root {
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ring: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* 实时刷新开关: 开启时绿点持续扩散 */
+.live[aria-pressed='false'] {
+  color: var(--text2);
+}
+
+.live-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: background-color 0.2s;
+}
+
+.live[aria-pressed='true'] .live-dot {
+  background: #0ca30c;
+}
+
+.live[aria-pressed='true'] .live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: ping 1.6s var(--ease) infinite;
+}
+
+.refresh-icon,
+.theme-icon {
+  display: inline-flex;
+}
+
+.refresh-icon.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+.theme-icon {
+  animation: spin-in 0.45s var(--ease) both;
+}
+
+.swap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  animation: pop-in 0.22s var(--ease) both;
+}
+
+/* 列表底部的更新时间: 有新数据时闪一下强调色 */
+.tick {
+  animation: tick 1.2s ease-out;
+}
+
+/* 首次加载骨架 */
+.sk-item {
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.sk {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--raised) 25%, var(--border) 50%, var(--raised) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.sk-meta {
+  width: 40%;
+}
+
+.sk-title {
+  width: 85%;
+  height: 13px;
+}
+
+.sk-sub {
+  width: 60%;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes zoom-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes bump {
+  0% {
+    transform: scale(0.7);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes fresh {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+}
+
+@keyframes tick {
+  from {
+    color: var(--accent);
+  }
+}
+
+@keyframes ping {
+  from {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-in {
+  from {
+    opacity: 0;
+    transform: rotate(-120deg) scale(0.4);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+/* 系统开启「减少动态效果」时几乎瞬时完成所有动画与过渡 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ---------- 窄屏 ---------- */
@@ -978,6 +1259,7 @@ select.btn {
 
   .search {
     flex-basis: 100%;
+    max-width: none;
   }
 
   .layout {

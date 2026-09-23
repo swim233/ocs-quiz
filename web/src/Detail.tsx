@@ -66,7 +66,10 @@ export function Detail({ row, onZoom }: { row: LogRow; onZoom: (t: ZoomTarget) =
           {rawOpen ? '收起原始文本' : '原始文本'}
         </button>
         <button type="button" className="btn btn-sm" onClick={copyJson}>
-          {copied ? '已复制' : '复制 JSON'}
+          <span key={String(copied)} className="swap">
+            {copied && <IconCheck size={14} />}
+            {copied ? '已复制' : '复制 JSON'}
+          </span>
         </button>
       </div>
 

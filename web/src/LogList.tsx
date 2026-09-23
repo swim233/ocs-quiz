@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import {
   SLOW_MS,
   STATUS_LABEL,
@@ -48,11 +48,23 @@ function groupRows(rows: LogRow[]): Group[] {
   return groups;
 }
 
-function ListItem({ row, on, onSelect }: { row: LogRow; on: boolean; onSelect: (id: number) => void }) {
+interface ItemProps {
+  row: LogRow;
+  on: boolean;
+  /** 实时刷新新到达的记录, 挂载时高亮一次 */
+  fresh: boolean;
+  /** 在列表中的序号, 用于入场动画错开 */
+  index: number;
+  /** 选中时是否滚动到可见; 跟随最新记录时不滚动, 以免把用户正在浏览的列表拉回顶部 */
+  scrollOnSelect: boolean;
+  onSelect: (id: number) => void;
+}
+
+function ListItem({ row, on, fresh, index, scrollOnSelect, onSelect }: ItemProps) {
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (on) ref.current?.scrollIntoView({ block: 'nearest' });
-  }, [on]);
+    if (on && scrollOnSelect) ref.current?.scrollIntoView({ block: 'nearest' });
+  }, [on]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { summary } = analyzeRow(row);
   const failed = row.status === 'error' || row.status === 'unauthorized';
@@ -61,7 +73,8 @@ function ListItem({ row, on, onSelect }: { row: LogRow; on: boolean; onSelect: (
     <button
       ref={ref}
       type="button"
-      className={`item${on ? ' on' : ''}`}
+      className={`item${on ? ' on' : ''}${fresh ? ' fresh' : ''}`}
+      style={{ '--i': index } as CSSProperties}
       aria-current={on ? 'true' : undefined}
       onClick={() => onSelect(row.id)}
     >
@@ -93,20 +106,43 @@ function ListItem({ row, on, onSelect }: { row: LogRow; on: boolean; onSelect: (
   );
 }
 
+/** 首次加载时的占位骨架 */
+function Skeleton() {
+  return (
+    <div aria-hidden="true">
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="sk-item">
+          <span className="sk sk-meta" />
+          <span className="sk sk-title" />
+          <span className="sk sk-sub" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LogList({
   rows,
   total,
   selectedId,
+  following,
+  freshAfter,
+  refreshedAt,
   onSelect,
   loading
 }: {
   rows: LogRow[];
   total: number;
   selectedId: number | null;
+  /** 用户未手动选择, 选中项自动跟随最新记录 */
+  following: boolean;
+  freshAfter: number;
+  refreshedAt: string;
   onSelect: (id: number) => void;
   loading: boolean;
 }) {
   const groups = useMemo(() => groupRows(rows), [rows]);
+  let index = 0;
   return (
     <aside className="list" aria-label="日志列表">
       <div className="list-scroll">
@@ -117,19 +153,42 @@ export function LogList({
               <span>{g.meta}</span>
             </div>
             {g.rows.map((row) => (
-              <ListItem key={row.id} row={row} on={row.id === selectedId} onSelect={onSelect} />
+              <ListItem
+                key={row.id}
+                row={row}
+                on={row.id === selectedId}
+                fresh={row.id > freshAfter}
+                index={index++}
+                scrollOnSelect={!following}
+                onSelect={onSelect}
+              />
             ))}
           </section>
         ))}
-        {rows.length === 0 && (
-          <p className="list-empty">{loading ? '加载中…' : total ? '没有匹配的记录' : '暂无日志记录'}</p>
-        )}
+        {rows.length === 0 &&
+          (loading && total === 0 ? (
+            <>
+              <p className="sr-only">加载中…</p>
+              <Skeleton />
+            </>
+          ) : (
+            <p className="list-empty">{total ? '没有匹配的记录' : '暂无日志记录'}</p>
+          ))}
       </div>
       <div className="list-foot">
         <span>
-          显示 {rows.length} / {total} · 北京时间
+          显示 {rows.length} / {total}
+          {refreshedAt && (
+            <>
+              {' · 更新于 '}
+              {/* freshAfter 只在数据有变化时改变, 以它为 key 让时间仅在有新数据时闪一下 */}
+              <span key={freshAfter} className="mono tick">
+                {refreshedAt}
+              </span>
+            </>
+          )}
         </span>
-        <span>↑ ↓ 切换记录</span>
+        <span>北京时间 · ↑ ↓ 切换记录</span>
       </div>
     </aside>
   );

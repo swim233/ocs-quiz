@@ -64,6 +64,13 @@ export const IconLogout = (p: IconProps) => (
   </Svg>
 );
 
+export const IconRefresh = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.5" />
+    <path d="M20 3.5v5h-5" />
+  </Svg>
+);
+
 export const IconCheck = (p: IconProps) => (
   <Svg {...p}>
     <path d="M5 12.5l4.5 4.5L19 7.5" />
