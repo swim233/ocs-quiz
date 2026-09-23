@@ -618,7 +618,6 @@ select.btn {
   border-color: var(--primary);
   background: var(--primary);
   color: #ffffff;
-  animation: bump 0.4s var(--ease) 0.15s both;
 }
 
 .option-text {
@@ -635,7 +634,6 @@ select.btn {
   font-size: 12px;
   font-weight: 500;
   color: var(--accent);
-  animation: pop-in 0.3s var(--ease) 0.2s both;
 }
 
 .blanks {
@@ -795,7 +793,6 @@ select.btn {
   background: var(--primary);
   color: #ffffff;
   font-weight: 600;
-  animation: bump 0.4s var(--ease) 0.25s both;
 }
 
 .code {
@@ -1163,15 +1160,6 @@ select.btn {
   from {
     opacity: 0;
     transform: scale(0.85);
-  }
-}
-
-@keyframes bump {
-  0% {
-    transform: scale(0.7);
-  }
-  60% {
-    transform: scale(1.12);
   }
 }
 
