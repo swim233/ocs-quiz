@@ -15,6 +15,8 @@ export interface OcsConfigOptions {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  /** 可选的思考强度 (?thinkEffort=), 留空表示使用服务商默认强度 */
+  thinkEffort?: string;
 }
 
 export function buildOcsConfig(origin: string, options: OcsConfigOptions = {}): unknown[] {
@@ -26,7 +28,8 @@ export function buildOcsConfig(origin: string, options: OcsConfigOptions = {}): 
     type: '${type}',
     apiKey: options.apiKey || '',
     baseUrl: options.baseUrl || '',
-    model: options.model || ''
+    model: options.model || '',
+    thinkEffort: options.thinkEffort || ''
   };
   return [
     {

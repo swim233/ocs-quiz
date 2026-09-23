@@ -78,6 +78,11 @@ export interface LlmConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  /**
+   * 可选的思考强度, 原样透传为 reasoning_effort (如 DeepSeek: none/low/high/max,
+   * OpenAI: minimal/low/medium/high); 不填则不发送, 使用服务商默认强度
+   */
+  thinkEffort?: string;
 }
 
 const REQUIRED_FIELDS = ['apiKey', 'baseUrl', 'model'] as const;
@@ -88,8 +93,8 @@ export function resolveLlmConfig(input: Partial<LlmConfig>): LlmConfig {
   if (missing.length) {
     throw new Error(`缺少 ${missing.join(', ')}: 请在请求中携带这些字段`);
   }
-  const { apiKey, baseUrl, model } = input as LlmConfig;
-  return { apiKey, baseUrl: baseUrl.replace(/\/+$/, ''), model };
+  const { apiKey, baseUrl, model, thinkEffort } = input as LlmConfig;
+  return { apiKey, baseUrl: baseUrl.replace(/\/+$/, ''), model, thinkEffort };
 }
 
 /**
@@ -102,7 +107,7 @@ export function resolveLlmConfig(input: Partial<LlmConfig>): LlmConfig {
  * 认证错误(401/403)与网络/超时错误直接抛出, 不做无谓重试。
  */
 export async function callLlm(env: Env, messages: ChatMessage[], config: Partial<LlmConfig>): Promise<LlmResult> {
-  const { baseUrl: base, model, apiKey } = resolveLlmConfig(config);
+  const resolved = resolveLlmConfig(config);
   const temperature = parseFloat(env.LLM_TEMPERATURE || '0') || 0;
   const timeoutMs = parseInt(env.LLM_TIMEOUT_MS || '', 10) || DEFAULT_TIMEOUT_MS;
 
@@ -123,8 +128,8 @@ export async function callLlm(env: Env, messages: ChatMessage[], config: Partial
   for (const strategy of strategies) {
     try {
       attempts++;
-      const { content, usage } = await requestCompletion(base, model, apiKey, temperature, messages, strategy, timeoutMs);
-      return { content, model, latencyMs: Date.now() - started, attempts, usage };
+      const { content, usage } = await requestCompletion(resolved, temperature, messages, strategy, timeoutMs);
+      return { content, model: resolved.model, latencyMs: Date.now() - started, attempts, usage };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       const status = (err as { status?: number }).status;
@@ -136,9 +141,7 @@ export async function callLlm(env: Env, messages: ChatMessage[], config: Partial
 }
 
 async function requestCompletion(
-  base: string,
-  model: string,
-  apiKey: string,
+  { baseUrl, model, apiKey, thinkEffort }: LlmConfig,
   temperature: number,
   messages: ChatMessage[],
   strategy: Strategy,
@@ -156,8 +159,9 @@ async function requestCompletion(
     }))
   };
   if (strategy.json) body.response_format = { type: 'json_object' };
+  if (thinkEffort) body.reasoning_effort = thinkEffort;
 
-  const res = await fetch(`${base}/chat/completions`, {
+  const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(body),

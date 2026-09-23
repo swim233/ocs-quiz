@@ -24,6 +24,8 @@ interface SearchBody {
   apiKey?: unknown;
   baseUrl?: unknown;
   model?: unknown;
+  /** 可选的思考强度, 透传为 reasoning_effort; 不填使用服务商默认强度 */
+  thinkEffort?: unknown;
 }
 
 export default {
@@ -43,7 +45,8 @@ export default {
           token,
           apiKey: url.searchParams.get('apiKey') || undefined,
           baseUrl: url.searchParams.get('baseUrl') || undefined,
-          model: url.searchParams.get('model') || undefined
+          model: url.searchParams.get('model') || undefined,
+          thinkEffort: url.searchParams.get('thinkEffort') || undefined
         })
       );
     }
@@ -139,7 +142,8 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   const llmConfig = {
     apiKey: typeof body.apiKey === 'string' && body.apiKey ? body.apiKey : undefined,
     baseUrl: typeof body.baseUrl === 'string' && body.baseUrl ? body.baseUrl : undefined,
-    model: typeof body.model === 'string' && body.model ? body.model : undefined
+    model: typeof body.model === 'string' && body.model ? body.model : undefined,
+    thinkEffort: typeof body.thinkEffort === 'string' && body.thinkEffort.trim() ? body.thinkEffort.trim() : undefined
   };
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt() },
