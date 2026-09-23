@@ -9,7 +9,6 @@ export type ContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } };
 
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 /** Workers 免费版单请求墙钟上限 30s, 单次 LLM 尝试不超过 25s, 给降级重试留余量 */
 const WALL_BUDGET_MS = 25000;
 
@@ -69,6 +68,25 @@ interface Strategy {
   vision: boolean;
 }
 
+/** 调用方随请求携带的 LLM 配置 (BYOK), 服务端不提供兜底值 */
+export interface LlmConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
+const REQUIRED_FIELDS = ['apiKey', 'baseUrl', 'model'] as const;
+
+/** 校验 BYOK 配置: 三项均必填, 缺失时一次列出全部缺失字段 */
+export function resolveLlmConfig(input: Partial<LlmConfig>): LlmConfig {
+  const missing = REQUIRED_FIELDS.filter((k) => !input[k]);
+  if (missing.length) {
+    throw new Error(`缺少 ${missing.join(', ')}: 请在请求中携带这些字段`);
+  }
+  const { apiKey, baseUrl, model } = input as LlmConfig;
+  return { apiKey, baseUrl: baseUrl.replace(/\/+$/, ''), model };
+}
+
 /**
  * 调用 OpenAI 兼容 chat/completions。
  *
@@ -77,25 +95,8 @@ interface Strategy {
  * 覆盖: 不支持 response_format 的 API、不支持视觉输入的模型。
  * 认证错误(401/403)与网络/超时错误直接抛出, 不做无谓重试。
  */
-export interface LlmOverride {
-  apiKey?: string;
-  baseUrl?: string;
-  model?: string;
-}
-
-/** 解析最终 LLM 配置: 请求携带值 > 环境变量 > 内置默认值 */
-export function resolveLlmConfig(env: Env, override: LlmOverride = {}): Required<LlmOverride> {
-  const baseUrl = (override.baseUrl || env.LLM_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
-  const model = override.model || env.LLM_MODEL || 'gpt-4o-mini';
-  const apiKey = override.apiKey || env.LLM_API_KEY || '';
-  if (!apiKey) {
-    throw new Error('缺少 apiKey: 请在请求中携带 apiKey 字段, 或配置环境变量 LLM_API_KEY');
-  }
-  return { apiKey, baseUrl, model };
-}
-
-export async function callLlm(env: Env, messages: ChatMessage[], override: LlmOverride = {}): Promise<LlmResult> {
-  const { baseUrl: base, model, apiKey } = resolveLlmConfig(env, override);
+export async function callLlm(env: Env, messages: ChatMessage[], config: Partial<LlmConfig>): Promise<LlmResult> {
+  const { baseUrl: base, model, apiKey } = resolveLlmConfig(config);
   const temperature = parseFloat(env.LLM_TEMPERATURE || '0') || 0;
   const timeoutMs = Math.min(parseInt(env.LLM_TIMEOUT_MS || '30000', 10) || 30000, WALL_BUDGET_MS);
 
@@ -130,7 +131,7 @@ export async function callLlm(env: Env, messages: ChatMessage[], override: LlmOv
 async function requestCompletion(
   base: string,
   model: string,
-  apiKey: string | undefined,
+  apiKey: string,
   temperature: number,
   messages: ChatMessage[],
   strategy: Strategy,
@@ -149,12 +150,9 @@ async function requestCompletion(
   };
   if (strategy.json) body.response_format = { type: 'json_object' };
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
   const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs)
   });

@@ -7,9 +7,6 @@ import { buildOcsConfig } from './ocs-config';
 import { parseLlmAnswer } from './parse';
 
 export interface Env {
-  LLM_BASE_URL?: string;
-  LLM_API_KEY?: string;
-  LLM_MODEL?: string;
   LLM_TEMPERATURE?: string;
   LLM_TIMEOUT_MS?: string;
   VISION_ENABLED?: string;
@@ -24,7 +21,7 @@ interface SearchBody {
   title?: unknown;
   options?: unknown;
   type?: unknown;
-  /** 请求方携带的 LLM 配置(优先于环境变量); 不会写入日志 */
+  /** 请求方携带的 LLM 配置 (BYOK, 三项必填); apiKey 不会写入日志 */
   apiKey?: unknown;
   baseUrl?: unknown;
   model?: unknown;
@@ -37,7 +34,7 @@ export default {
     const path = url.pathname;
 
     if (path === '/api/health') {
-      return json({ ok: true, model: env.LLM_MODEL || 'default' });
+      return json({ ok: true });
     }
     if (path === '/ocs-config.json') {
       return json(
@@ -142,7 +139,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
 
   const images = extractImageUrls(title, options);
   const visionEnabled = env.VISION_ENABLED !== 'false';
-  const llmOverride = {
+  const llmConfig = {
     apiKey: typeof body.apiKey === 'string' && body.apiKey ? body.apiKey : undefined,
     baseUrl: typeof body.baseUrl === 'string' && body.baseUrl ? body.baseUrl : undefined,
     model: typeof body.model === 'string' && body.model ? body.model : undefined
@@ -153,7 +150,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   ];
 
   try {
-    const { content, model, latencyMs, usage } = await callLlm(env, messages, llmOverride);
+    const { content, model, latencyMs, usage } = await callLlm(env, messages, llmConfig);
     const { answers, reason } = parseLlmAnswer(content, type);
     const status = answers.length > 0 ? 'ok' : 'no_answer';
     await logSearch(env, {
@@ -193,7 +190,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       title,
       options,
       images: images.length,
-      model: env.LLM_MODEL || '',
+      model: llmConfig.model || '',
       answers: '',
       reason: '',
       latencyMs: 0,

@@ -7,15 +7,14 @@ compatibility_date = "2025-01-01"
 directory = "./dist"
 binding = "ASSETS"
 
+# LLM 的 apiKey / baseUrl / model 由调用方随请求携带 (BYOK), 服务端不保存
 [vars]
-LLM_BASE_URL = "https://api.openai.com/v1"
-LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = "0"
 LLM_TIMEOUT_MS = "30000"
 VISION_ENABLED = "true"
 LOG_ENABLED = "true"
 
-# LLM_API_KEY 与 AUTH_TOKEN 为敏感信息, 通过 `wrangler secret put` 配置, 不要写入本文件
+# AUTH_TOKEN 为敏感信息, 通过 `wrangler secret put AUTH_TOKEN` 配置, 不要写入本文件
 
 [[d1_databases]]
 binding = "DB"
