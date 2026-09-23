@@ -142,6 +142,10 @@ export function Detail({ row, timeoutMs, onZoom }: { row: LogRow; timeoutMs: num
             <span>模型</span>
             <span className="mono">{row.model || '—'}</span>
           </div>
+          <div className="meta-item span2">
+            <span>请求 IP</span>
+            {row.ip ? <span className="mono">{row.ip}</span> : <span className="muted">未记录（旧记录）</span>}
+          </div>
           <div className="meta-item">
             <span>耗时</span>
             <span

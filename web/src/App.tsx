@@ -63,7 +63,7 @@ function sameIds(a: LogRow[], b: LogRow[]): boolean {
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function matchesQuery(row: LogRow, q: string): boolean {
-  return [row.title, row.options, row.answers, row.reason, row.error, row.model].some((v) =>
+  return [row.title, row.options, row.answers, row.reason, row.error, row.model, row.ip].some((v) =>
     (v || '').toLowerCase().includes(q)
   );
 }
@@ -279,7 +279,7 @@ export default function App() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索题目、选项、答案、错误…"
+            placeholder="搜索题目、选项、答案、错误、IP…"
           />
         </label>
         <div className="seg" role="group" aria-label="按状态筛选">

@@ -31,3 +31,11 @@ export function authorize(request: Request, token?: string, url?: URL): boolean 
     url?.searchParams.get("token") === token
   );
 }
+
+/**
+ * 请求方 IP。CF-Connecting-IP 由 Cloudflare 边缘写入, 客户端无法伪造;
+ * X-Forwarded-For 可被客户端自行填写, 不采用。本地 wrangler dev 下同样会设置。
+ */
+export function clientIp(request: Request): string {
+  return request.headers.get("CF-Connecting-IP") || "";
+}

@@ -1,7 +1,7 @@
-import { authorize, handleOptions, json } from './http';
+import { authorize, clientIp, handleOptions, json } from './http';
 import { extractImageUrls } from './images';
 import { buildSystemPrompt, buildUserContent, callLlm, llmTimeoutMs, type ChatMessage } from './llm';
-import { logSearch, queryLogs } from './log';
+import { logSearch, queryLogs, type SearchLog } from './log';
 import { buildOcsConfig, TOKEN_PLACEHOLDER } from './ocs-config';
 import { lettersToOptionTexts, parseLlmAnswer } from './parse';
 
@@ -75,8 +75,11 @@ export default {
  * 题目为空、LLM 失败、无法作答等业务错误返回 200 + code:1, 由 handler 把 msg 显示在 OCS 面板。
  */
 async function handleSearch(request: Request, env: Env): Promise<Response> {
+  const ip = clientIp(request);
+  const log = (entry: Omit<SearchLog, 'ip'>) => logSearch(env, { ...entry, ip });
+
   if (!authorize(request, env.AUTH_TOKEN)) {
-    await logSearch(env, {
+    await log({
       questionType: 'unknown',
       title: '',
       options: '',
@@ -99,7 +102,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   try {
     body = (await request.json()) as SearchBody;
   } catch {
-    await logSearch(env, {
+    await log({
       questionType: 'unknown',
       title: '',
       options: '',
@@ -123,7 +126,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   const type = typeof body.type === 'string' && body.type ? body.type : 'unknown';
   const thinkEffort = typeof body.thinkEffort === 'string' ? body.thinkEffort.trim() : '';
   if (!title.trim() && !options.trim()) {
-    await logSearch(env, {
+    await log({
       questionType: type,
       title,
       options,
@@ -162,7 +165,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
     // 选择/判断题的字母答案换成选项原文, OCS 才能稳定匹配 (见 lettersToOptionTexts)
     const answers = type === 'completion' ? parsed.answers : lettersToOptionTexts(parsed.answers, options);
     const status = answers.length > 0 ? 'ok' : 'no_answer';
-    await logSearch(env, {
+    await log({
       questionType: type,
       title,
       options,
@@ -198,7 +201,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await logSearch(env, {
+    await log({
       questionType: type,
       title,
       options,

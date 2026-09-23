@@ -17,6 +17,8 @@ export interface LogRow {
   cached_tokens: number;
   /** 迁移前的旧记录可能缺失 */
   think_effort?: string;
+  /** 请求方 IP; 新增该列之前的旧记录为空串 */
+  ip?: string;
 }
 
 export const STATUS_LABEL: Record<string, string> = {

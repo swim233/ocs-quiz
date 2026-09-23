@@ -17,15 +17,17 @@ const CREATE_TABLE_SQL = `CREATE TABLE IF NOT EXISTS logs (
   prompt_tokens INTEGER NOT NULL DEFAULT 0,
   completion_tokens INTEGER NOT NULL DEFAULT 0,
   cached_tokens INTEGER NOT NULL DEFAULT 0,
-  think_effort TEXT NOT NULL DEFAULT ''
+  think_effort TEXT NOT NULL DEFAULT '',
+  ip TEXT NOT NULL DEFAULT ''
 )`;
 
-/** 旧库(无 token / think_effort 列)的幂等迁移: 重复列报错会被忽略 */
+/** 旧库(无 token / think_effort / ip 列)的幂等迁移: 重复列报错会被忽略 */
 const MIGRATIONS = [
   'ALTER TABLE logs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE logs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE logs ADD COLUMN cached_tokens INTEGER NOT NULL DEFAULT 0',
-  "ALTER TABLE logs ADD COLUMN think_effort TEXT NOT NULL DEFAULT ''"
+  "ALTER TABLE logs ADD COLUMN think_effort TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE logs ADD COLUMN ip TEXT NOT NULL DEFAULT ''"
 ];
 
 let schemaReady = false;
@@ -65,6 +67,8 @@ export interface SearchLog {
   cachedTokens: number;
   /** 请求携带的思考强度, 未携带为空串 */
   thinkEffort: string;
+  /** 请求方 IP (CF-Connecting-IP), 取不到为空串 */
+  ip: string;
 }
 
 export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
@@ -72,8 +76,8 @@ export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
   if (!(await ensureSchema(env))) return;
   try {
     await env.DB.prepare(
-      `INSERT INTO logs (ts, question_type, title, options, images, model, answers, reason, latency_ms, status, error, prompt_tokens, completion_tokens, cached_tokens, think_effort)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO logs (ts, question_type, title, options, images, model, answers, reason, latency_ms, status, error, prompt_tokens, completion_tokens, cached_tokens, think_effort, ip)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         new Date().toISOString(),
@@ -90,7 +94,8 @@ export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
         entry.promptTokens,
         entry.completionTokens,
         entry.cachedTokens,
-        entry.thinkEffort.slice(0, 32)
+        entry.thinkEffort.slice(0, 32),
+        entry.ip.slice(0, 64)
       )
       .run();
   } catch (err) {
