@@ -1,8 +1,7 @@
-import { authorize, corsHeaders, handleOptions, json } from './http';
+import { authorize, handleOptions, json } from './http';
 import { extractImageUrls } from './images';
 import { buildSystemPrompt, buildUserContent, callLlm, type ChatMessage } from './llm';
 import { logSearch, queryLogs } from './log';
-import { renderLogsPage } from './logs-page';
 import { buildOcsConfig, TOKEN_PLACEHOLDER } from './ocs-config';
 import { parseLlmAnswer } from './parse';
 
@@ -57,17 +56,8 @@ export default {
       return json({ code: 0, data: await queryLogs(env, limit) });
     }
     if (path === '/logs') {
-      // 浏览器无法带 Authorization 头, 页面路由额外接受 ?token= 参数
-      const tokenOk =
-        !env.AUTH_TOKEN ||
-        request.headers.get('Authorization') === `Bearer ${env.AUTH_TOKEN}` ||
-        url.searchParams.get('token') === env.AUTH_TOKEN;
-      if (!tokenOk) return json({ code: 1, msg: '未授权' }, 401);
-      const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 200);
-      const rows = (await queryLogs(env, limit)) as unknown[];
-      return new Response(renderLogsPage(rows as Parameters<typeof renderLogsPage>[0], url.origin), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
+      // 旧的服务端渲染日志页已由 React 前端 (/) 取代, 保留跳转兼容旧书签
+      return Response.redirect(new URL('/', url).toString(), 302);
     }
     // 其余路径交给静态资源 (React 前端), 未命中则 404
     if (env.ASSETS) return env.ASSETS.fetch(request);
