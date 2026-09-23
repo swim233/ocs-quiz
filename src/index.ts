@@ -73,6 +73,11 @@ export default {
   }
 };
 
+/**
+ * OCS 只把 HTTP 200 视为成功, 其余状态码一律显示「题库连接失败」且不展示 msg。
+ * 因此仅鉴权失败(401)与非 JSON 请求体(400)使用错误状态码;
+ * 题目为空、LLM 失败、无法作答等业务错误返回 200 + code:1, 由 handler 把 msg 显示在 OCS 面板。
+ */
 async function handleSearch(request: Request, env: Env): Promise<Response> {
   if (!authorize(request, env.AUTH_TOKEN)) {
     await logSearch(env, {
@@ -112,7 +117,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       completionTokens: 0,
       cachedTokens: 0
     });
-    return json({ code: 1, msg: '请求体必须是 JSON' }, 500);
+    return json({ code: 1, msg: '请求体必须是 JSON' }, 400);
   }
 
   const title = typeof body.title === 'string' ? body.title.slice(0, 3000) : '';
@@ -134,7 +139,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       completionTokens: 0,
       cachedTokens: 0
     });
-    return json({ code: 1, msg: '题目为空' }, 500);
+    return json({ code: 1, msg: '题目为空' });
   }
 
   const images = extractImageUrls(title, options);
@@ -168,6 +173,9 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       completionTokens: usage.completionTokens,
       cachedTokens: usage.cachedTokens
     });
+    if (status === 'no_answer') {
+      return json({ code: 1, msg: `无法作答: ${reason || '模型未给出答案'}` });
+    }
     return json({
       code: 0,
       data: {
@@ -200,6 +208,6 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       completionTokens: 0,
       cachedTokens: 0
     });
-    return json({ code: 1, msg: `答题失败: ${message.slice(0, 300)}` }, 500);
+    return json({ code: 1, msg: `答题失败: ${message.slice(0, 300)}` });
   }
 }

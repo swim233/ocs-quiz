@@ -31,7 +31,7 @@ export function buildOcsConfig(origin: string, options: OcsConfigOptions = {}): 
       type: 'GM_xmlhttpRequest',
       headers,
       data,
-      handler: "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('|')] : undefined"
+      handler: "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('|')] : [res.msg, undefined]"
     }
   ];
 }
