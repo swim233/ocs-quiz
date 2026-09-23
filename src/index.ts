@@ -141,7 +141,7 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
   }
 
   const images = extractImageUrls(title, options);
-   const visionEnabled = env.VISION_ENABLED !== 'false';
+  const visionEnabled = env.VISION_ENABLED !== 'false';
   const llmOverride = {
     apiKey: typeof body.apiKey === 'string' && body.apiKey ? body.apiKey : undefined,
     baseUrl: typeof body.baseUrl === 'string' && body.baseUrl ? body.baseUrl : undefined,
