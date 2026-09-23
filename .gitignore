@@ -3,3 +3,7 @@ web/node_modules/
 .wrangler/
 dist/
 .dev.vars
+.dev.vars.*
+.env*
+*.log
+.DS_Store

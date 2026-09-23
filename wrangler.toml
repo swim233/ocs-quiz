@@ -25,7 +25,7 @@ database_id = "b38b1e17-777e-43ab-85d1-7b395e7cda30"
 [observability]
 enabled = false
 head_sampling_rate = 1
-redact_query_string = false
+redact_query_string = true
 
 [observability.logs]
 enabled = true
