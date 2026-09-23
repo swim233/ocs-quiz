@@ -9,8 +9,13 @@ export type ContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } };
 
-/** Workers 免费版单请求墙钟上限 30s, 单次 LLM 尝试不超过 25s, 给降级重试留余量 */
-const WALL_BUDGET_MS = 25000;
+/**
+ * 单次 LLM 请求的默认超时 (可用 LLM_TIMEOUT_MS 覆盖)。
+ * Workers 对 HTTP 请求没有墙钟时长上限, 等待 fetch 也不计入 CPU 时间;
+ * 实际约束是 OCS 的「搜题最大耗时」(高级设置, 默认 120s, 范围 10-180s; 4.11.8 之前固定 30s)。
+ * 超时属于网络错误, 不会触发降级重试。
+ */
+const DEFAULT_TIMEOUT_MS = 30000;
 
 export function buildSystemPrompt(): string {
   return [
@@ -99,7 +104,7 @@ export function resolveLlmConfig(input: Partial<LlmConfig>): LlmConfig {
 export async function callLlm(env: Env, messages: ChatMessage[], config: Partial<LlmConfig>): Promise<LlmResult> {
   const { baseUrl: base, model, apiKey } = resolveLlmConfig(config);
   const temperature = parseFloat(env.LLM_TEMPERATURE || '0') || 0;
-  const timeoutMs = Math.min(parseInt(env.LLM_TIMEOUT_MS || '30000', 10) || 30000, WALL_BUDGET_MS);
+  const timeoutMs = parseInt(env.LLM_TIMEOUT_MS || '', 10) || DEFAULT_TIMEOUT_MS;
 
   const hasImages = messages.some(
     (m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url')
