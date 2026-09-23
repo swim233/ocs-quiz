@@ -1,4 +1,5 @@
 # OCS Quiz
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/352c89c8-a1f2-4c2a-8762-f99b81747dbd" />
 
 给 [OCS 网课助手](https://docs.ocsjs.com/) 用的 AI 题库。部署在 Cloudflare Workers 上，把 OCS 发来的题目转交给大模型作答，再把答案返回给 OCS 自动填写。
 
