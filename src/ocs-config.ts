@@ -38,7 +38,8 @@ export function buildOcsConfig(origin: string, options: OcsConfigOptions = {}): 
       type: 'GM_xmlhttpRequest',
       headers,
       data,
-      handler: "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('|')] : [res.msg, undefined]"
+      // 多个答案用 # 连接: # 在 OCS 分隔符中优先级最高, 且不会像 | 那样在代码类答案中被禁用
+      handler: "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('#')] : [res.msg, undefined]"
     }
   ];
 }

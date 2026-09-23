@@ -67,6 +67,23 @@ function splitStringAnswers(s: string, type: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * 把选项字母答案换成对应的选项原文。
+ *
+ * OCS 发来的 options 是按行排列、不带字母的选项文本, 而 OCS 的字母兜底匹配条件苛刻
+ * (多选须为未拆分的升序大写串, 判断题只认对/错类词语), 返回原文可走 OCS 的文本匹配。
+ * 仅当所有答案都是落在选项范围内的单个字母时才替换, 否则原样返回。
+ */
+export function lettersToOptionTexts(answers: string[], options: string): string[] {
+  const lines = options
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const indexes = answers.map((a) => (/^[A-Za-z]$/.test(a) ? a.toUpperCase().charCodeAt(0) - 65 : -1));
+  if (indexes.length === 0 || indexes.some((i) => i < 0 || i >= lines.length)) return answers;
+  return dedupe(indexes.map((i) => lines[i]));
+}
+
 function dedupe(items: string[]): string[] {
   return [...new Set(items)];
 }

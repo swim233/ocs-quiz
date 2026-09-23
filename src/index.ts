@@ -3,7 +3,7 @@ import { extractImageUrls } from './images';
 import { buildSystemPrompt, buildUserContent, callLlm, type ChatMessage } from './llm';
 import { logSearch, queryLogs } from './log';
 import { buildOcsConfig, TOKEN_PLACEHOLDER } from './ocs-config';
-import { parseLlmAnswer } from './parse';
+import { lettersToOptionTexts, parseLlmAnswer } from './parse';
 
 export interface Env {
   LLM_TEMPERATURE?: string;
@@ -148,7 +148,10 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
 
   try {
     const { content, model, latencyMs, usage } = await callLlm(env, messages, llmConfig);
-    const { answers, reason } = parseLlmAnswer(content, type);
+    const parsed = parseLlmAnswer(content, type);
+    const reason = parsed.reason;
+    // 选择/判断题的字母答案换成选项原文, OCS 才能稳定匹配 (见 lettersToOptionTexts)
+    const answers = type === 'completion' ? parsed.answers : lettersToOptionTexts(parsed.answers, options);
     const status = answers.length > 0 ? 'ok' : 'no_answer';
     await logSearch(env, {
       questionType: type,
