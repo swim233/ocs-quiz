@@ -1,0 +1,19 @@
+{
+  "name": "ocs-quiz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8790",
+    "build:web": "npm --prefix web run build",
+    "deploy": "npm run build:web && wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:init": "wrangler d1 execute ocs-quiz-db --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute ocs-quiz-db --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260826.1",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}

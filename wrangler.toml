@@ -1,0 +1,41 @@
+name = "ocs-quiz"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# React 前端静态资源 (npm run build:web 后生成)
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+[vars]
+LLM_BASE_URL = "https://api.openai.com/v1"
+LLM_MODEL = "gpt-4o-mini"
+LLM_TEMPERATURE = "0"
+LLM_TIMEOUT_MS = "30000"
+VISION_ENABLED = "true"
+LOG_ENABLED = "true"
+
+# LLM_API_KEY 与 AUTH_TOKEN 为敏感信息, 通过 `wrangler secret put` 配置, 不要写入本文件
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ocs-quiz-db"
+# 创建数据库: wrangler d1 create ocs-quiz-db, 然后将输出的 database_id 填入此处
+database_id = "b38b1e17-777e-43ab-85d1-7b395e7cda30"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+redact_query_string = false
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
+
