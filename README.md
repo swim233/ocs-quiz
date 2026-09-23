@@ -8,6 +8,12 @@
 - 自带日志页，可以查看每道题的题目、答案、理由、耗时和 token 用量
 - Cloudflare 免费套餐足够个人使用
 
+<p align="center">
+  <img width="2320" height="1237" alt="image" src="https://github.com/user-attachments/assets/86887f58-da26-4c5b-9604-c13a3138d63b" />
+  <br>
+  <sub>效果演示</sub>
+</p>
+
 ## 为什么要自己部署
 
 本项目采用 BYOK（Bring Your Own Key）模式：API Key 由你在 OCS 中填写，每次搜题时随请求一起发送给 Worker，再由 Worker 转发给大模型服务商。服务端不保存 Key，也不写入日志。
