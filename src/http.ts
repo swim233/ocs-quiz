@@ -20,8 +20,14 @@ export function handleOptions(): Response {
   return new Response(null, { status: 204, headers: corsHeaders });
 }
 
-/** 若配置了 AUTH_TOKEN, 要求请求携带 Authorization: Bearer <token> */
-export function authorize(request: Request, token?: string): boolean {
+/**
+ * 若配置了 AUTH_TOKEN, 要求请求携带 Authorization: Bearer <token>。
+ * 传入 url 时额外接受 ?token= 参数 (浏览器直接打开或 OCS 从 URL 导入配置时无法带请求头)。
+ */
+export function authorize(request: Request, token?: string, url?: URL): boolean {
   if (!token) return true;
-  return request.headers.get("Authorization") === `Bearer ${token}`;
+  return (
+    request.headers.get("Authorization") === `Bearer ${token}` ||
+    url?.searchParams.get("token") === token
+  );
 }

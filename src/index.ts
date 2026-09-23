@@ -3,7 +3,7 @@ import { extractImageUrls } from './images';
 import { buildSystemPrompt, buildUserContent, callLlm, type ChatMessage } from './llm';
 import { logSearch, queryLogs } from './log';
 import { renderLogsPage } from './logs-page';
-import { buildOcsConfig } from './ocs-config';
+import { buildOcsConfig, TOKEN_PLACEHOLDER } from './ocs-config';
 import { parseLlmAnswer } from './parse';
 
 export interface Env {
@@ -37,9 +37,11 @@ export default {
       return json({ ok: true });
     }
     if (path === '/ocs-config.json') {
+      // token 缺失或错误时返回占位符而非 401, 避免该公开接口被用来探测 token
+      const token = env.AUTH_TOKEN && !authorize(request, env.AUTH_TOKEN, url) ? TOKEN_PLACEHOLDER : env.AUTH_TOKEN;
       return json(
         buildOcsConfig(url.origin, {
-          token: env.AUTH_TOKEN,
+          token,
           apiKey: url.searchParams.get('apiKey') || undefined,
           baseUrl: url.searchParams.get('baseUrl') || undefined,
           model: url.searchParams.get('model') || undefined
