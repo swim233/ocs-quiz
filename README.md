@@ -191,10 +191,12 @@ https://<你的域名>/ocs-config.json
 | 位置 | 填什么 |
 | --- | --- |
 | `headers.Authorization` | 把 `<YOUR_TOKEN>` 换成部署时设置的 `AUTH_TOKEN`，保留前面的 `Bearer `。没有设置 `AUTH_TOKEN` 时可以删掉这一行 |
-| `data.apiKey` | 大模型服务商的 API Key，**必填** |
-| `data.baseUrl` | 接口地址，**必填**，见下方说明 |
-| `data.model` | 模型名称，**必填**，以服务商文档为准。要做图片题，请选择支持视觉输入的模型 |
+| `data.apiKey` | 大模型服务商的 API Key，**必填**（只用 providers 时可留空，见下方说明） |
+| `data.baseUrl` | 接口地址，**必填**（只用 providers 时可留空），填法见下方说明 |
+| `data.model` | 模型名称，**必填**（只用 providers 时可留空），以服务商文档为准。要做图片题，请选择支持视觉输入的模型 |
 | `data.thinkEffort` | 思考强度，可选。会原样作为 `reasoning_effort` 参数发给服务商（如 OpenAI 的 `low` / `medium` / `high`）。**不确定时请留空**，服务商不支持该参数时可能导致请求报错 |
+
+`apiKey`、`baseUrl`、`model` 三项要么都填，要么都留空。都留空时，必须[配置备用服务商](#可选配置备用服务商)，只填一部分会报错。
 
 其余字段（`${title}` 等占位符、`handler`）保持原样，不要改。
 
