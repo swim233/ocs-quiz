@@ -44,7 +44,7 @@ export function buildOcsConfig(origin: string, options: OcsConfigOptions = {}): 
       headers,
       data,
       // 多个答案用 # 连接: # 在 OCS 分隔符中优先级最高, 且不会像 | 那样在代码类答案中被禁用;
-      // 第三项为 extra_data: ai 显示「AI」标签, tags 由服务端生成 (见 buildAnswerTags)
+      // 第三项为 extra_data ({ ai, tags }, tags 见 buildAnswerTags); OCS 是否显示取决于版本, 实测部分版本只显示答案
       handler:
         "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('#'), { ai: true, tags: res.data.tags }] : [res.msg, undefined]"
     }
@@ -59,10 +59,11 @@ export interface OcsTag {
 }
 
 /**
- * 生成显示在 OCS 答案前的标签, 由 handler 原样透传; 放在服务端生成, 以后调整标签无需用户重新复制配置。
+ * 生成答案标签, 由 handler 原样透传给 OCS; 放在服务端生成, 以后调整标签无需用户重新复制配置。
+ * OCS 是否显示取决于版本: 按 4.15 源码会显示在搜索结果的答案前, 但实测部分版本只显示答案, 不显示标签。
  * - 模型名, 悬停显示服务商域名与思考强度
  * - 发生降级时追加「降级 #N」(N 为作答候选的序号), 悬停列出前面候选的失败原因
- * OCS 以 innerHTML 插入 text, 悬停提示 (easy-us tooltip) 也以 innerHTML 渲染 title (\n 转为 <br>), 两者都需转义。
+ * 按 4.15 源码, OCS 以 innerHTML 插入 text, 悬停提示 (easy-us tooltip) 也以 innerHTML 渲染 title (\n 转为 <br>), 两者都需转义。
  */
 export function buildAnswerTags(candidate: LlmConfig, index: number, fallbacks: FailedAttempt[]): OcsTag[] {
   const modelTitle = [hostOf(candidate.baseUrl), candidate.thinkEffort ? `思考强度: ${candidate.thinkEffort}` : '']
