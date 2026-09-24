@@ -1,4 +1,5 @@
 import type { Env } from './index';
+import type { FailedAttempt } from './llm';
 
 /** 与 schema.sql 保持同步; 幂等建表, 免除部署时手动 init 的顺序依赖 */
 const CREATE_TABLE_SQL = `CREATE TABLE IF NOT EXISTS logs (
@@ -18,16 +19,20 @@ const CREATE_TABLE_SQL = `CREATE TABLE IF NOT EXISTS logs (
   completion_tokens INTEGER NOT NULL DEFAULT 0,
   cached_tokens INTEGER NOT NULL DEFAULT 0,
   think_effort TEXT NOT NULL DEFAULT '',
-  ip TEXT NOT NULL DEFAULT ''
+  ip TEXT NOT NULL DEFAULT '',
+  base_url TEXT NOT NULL DEFAULT '',
+  fallbacks TEXT NOT NULL DEFAULT ''
 )`;
 
-/** 旧库(无 token / think_effort / ip 列)的幂等迁移: 重复列报错会被忽略 */
+/** 旧库(无 token / think_effort / ip / base_url / fallbacks 列)的幂等迁移: 重复列报错会被忽略 */
 const MIGRATIONS = [
   'ALTER TABLE logs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE logs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE logs ADD COLUMN cached_tokens INTEGER NOT NULL DEFAULT 0',
   "ALTER TABLE logs ADD COLUMN think_effort TEXT NOT NULL DEFAULT ''",
-  "ALTER TABLE logs ADD COLUMN ip TEXT NOT NULL DEFAULT ''"
+  "ALTER TABLE logs ADD COLUMN ip TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE logs ADD COLUMN base_url TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE logs ADD COLUMN fallbacks TEXT NOT NULL DEFAULT ''"
 ];
 
 let schemaReady = false;
@@ -69,6 +74,10 @@ export interface SearchLog {
   thinkEffort: string;
   /** 请求方 IP (CF-Connecting-IP), 取不到为空串 */
   ip: string;
+  /** 最后一次尝试的候选的 baseUrl (与 model / thinkEffort / error 对应), 未尝试为空串 */
+  baseUrl: string;
+  /** 最后一次尝试之前失败的尝试 */
+  fallbacks: FailedAttempt[];
 }
 
 export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
@@ -76,8 +85,8 @@ export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
   if (!(await ensureSchema(env))) return;
   try {
     await env.DB.prepare(
-      `INSERT INTO logs (ts, question_type, title, options, images, model, answers, reason, latency_ms, status, error, prompt_tokens, completion_tokens, cached_tokens, think_effort, ip)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO logs (ts, question_type, title, options, images, model, answers, reason, latency_ms, status, error, prompt_tokens, completion_tokens, cached_tokens, think_effort, ip, base_url, fallbacks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         new Date().toISOString(),
@@ -95,12 +104,20 @@ export async function logSearch(env: Env, entry: SearchLog): Promise<void> {
         entry.completionTokens,
         entry.cachedTokens,
         entry.thinkEffort.slice(0, 32),
-        entry.ip.slice(0, 64)
+        entry.ip.slice(0, 64),
+        entry.baseUrl.slice(0, 500),
+        serializeFallbacks(entry.fallbacks)
       )
       .run();
   } catch (err) {
     console.error('D1 日志写入失败', err);
   }
+}
+
+/** 逐条截断 error 后再序列化, 保证存入的始终是合法 JSON; 无降级时存空串 */
+function serializeFallbacks(fallbacks: FailedAttempt[]): string {
+  if (!fallbacks.length) return '';
+  return JSON.stringify(fallbacks.map((f) => ({ ...f, baseUrl: f.baseUrl.slice(0, 500), error: f.error.slice(0, 300) })));
 }
 
 export async function queryLogs(env: Env, limit: number): Promise<unknown[]> {

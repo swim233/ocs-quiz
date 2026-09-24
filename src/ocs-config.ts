@@ -6,6 +6,8 @@
  * 若配置了 AUTH_TOKEN: 携带正确 token (?token= 或 Bearer 头) 时内嵌真实 token,
  * 否则写入占位符 TOKEN_PLACEHOLDER。带 token 的 URL 等同于 token 本身, 注意保管。
  */
+import type { FailedAttempt, LlmConfig } from './llm';
+
 export const TOKEN_PLACEHOLDER = '<YOUR_TOKEN>';
 
 export interface OcsConfigOptions {
@@ -41,8 +43,47 @@ export function buildOcsConfig(origin: string, options: OcsConfigOptions = {}): 
       type: 'GM_xmlhttpRequest',
       headers,
       data,
-      // 多个答案用 # 连接: # 在 OCS 分隔符中优先级最高, 且不会像 | 那样在代码类答案中被禁用
-      handler: "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('#')] : [res.msg, undefined]"
+      // 多个答案用 # 连接: # 在 OCS 分隔符中优先级最高, 且不会像 | 那样在代码类答案中被禁用;
+      // 第三项为 extra_data: ai 显示「AI」标签, tags 由服务端生成 (见 buildAnswerTags)
+      handler:
+        "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('#'), { ai: true, tags: res.data.tags }] : [res.msg, undefined]"
     }
   ];
+}
+
+/** OCS 答案标签; color 为 OCS 预置的样式类名 */
+export interface OcsTag {
+  text: string;
+  title: string;
+  color: 'blue' | 'green' | 'gray' | 'red' | 'yellow';
+}
+
+/**
+ * 生成显示在 OCS 答案前的标签, 由 handler 原样透传; 放在服务端生成, 以后调整标签无需用户重新复制配置。
+ * - 模型名, 悬停显示服务商域名与思考强度
+ * - 发生降级时追加「降级 #N」(N 为作答候选的序号), 悬停列出前面候选的失败原因
+ * OCS 以 innerHTML 插入 text, 悬停提示 (easy-us tooltip) 也以 innerHTML 渲染 title (\n 转为 <br>), 两者都需转义。
+ */
+export function buildAnswerTags(candidate: LlmConfig, index: number, fallbacks: FailedAttempt[]): OcsTag[] {
+  const modelTitle = [hostOf(candidate.baseUrl), candidate.thinkEffort ? `思考强度: ${candidate.thinkEffort}` : '']
+    .filter(Boolean)
+    .join('\n');
+  const tags: OcsTag[] = [{ text: escapeHtml(candidate.model), title: escapeHtml(modelTitle), color: 'gray' }];
+  if (fallbacks.length) {
+    const lines = fallbacks.map((f) => `#${f.index} ${f.model}: ${f.error.slice(0, 100)}`);
+    tags.push({ text: `降级 #${index}`, title: escapeHtml(['前面的候选失败:', ...lines].join('\n')), color: 'yellow' });
+  }
+  return tags;
+}
+
+function hostOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl;
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }

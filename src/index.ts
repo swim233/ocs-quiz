@@ -1,8 +1,17 @@
 import { authorize, clientIp, handleOptions, json } from './http';
 import { extractImageUrls } from './images';
-import { buildSystemPrompt, buildUserContent, callLlm, llmTimeoutMs, type ChatMessage } from './llm';
+import {
+  buildSystemPrompt,
+  buildUserContent,
+  callWithFailover,
+  llmTimeoutMs,
+  resolveCandidates,
+  type ChatMessage,
+  type FailedAttempt,
+  type LlmConfig
+} from './llm';
 import { logSearch, queryLogs, type SearchLog } from './log';
-import { buildOcsConfig, TOKEN_PLACEHOLDER } from './ocs-config';
+import { buildAnswerTags, buildOcsConfig, TOKEN_PLACEHOLDER } from './ocs-config';
 import { lettersToOptionTexts, parseLlmAnswer } from './parse';
 
 export interface Env {
@@ -29,6 +38,8 @@ interface SearchBody {
   model?: unknown;
   /** 可选的思考强度, 透传为 reasoning_effort; 不填使用服务商默认强度 */
   thinkEffort?: unknown;
+  /** 可选的备用候选, 平铺字段失败后按顺序尝试 (见 resolveCandidates) */
+  providers?: unknown;
 }
 
 export default {
@@ -100,7 +111,9 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       promptTokens: 0,
       completionTokens: 0,
       cachedTokens: 0,
-      thinkEffort: ''
+      thinkEffort: '',
+      baseUrl: '',
+      fallbacks: []
     });
     return json({ code: 1, msg: '未授权' }, 401);
   }
@@ -123,7 +136,9 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       promptTokens: 0,
       completionTokens: 0,
       cachedTokens: 0,
-      thinkEffort: ''
+      thinkEffort: '',
+      baseUrl: '',
+      fallbacks: []
     });
     return json({ code: 1, msg: '请求体必须是 JSON' }, 400);
   }
@@ -147,73 +162,29 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       promptTokens: 0,
       completionTokens: 0,
       cachedTokens: 0,
-      thinkEffort
+      thinkEffort,
+      baseUrl: '',
+      fallbacks: []
     });
     return json({ code: 1, msg: '题目为空' });
   }
 
   const images = extractImageUrls(title, options);
   const visionEnabled = env.VISION_ENABLED !== 'false';
-  const llmConfig = {
-    apiKey: typeof body.apiKey === 'string' && body.apiKey ? body.apiKey : undefined,
-    baseUrl: typeof body.baseUrl === 'string' && body.baseUrl ? body.baseUrl : undefined,
-    model: typeof body.model === 'string' && body.model ? body.model : undefined,
-    thinkEffort: thinkEffort || undefined
-  };
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt() },
     { role: 'user', content: buildUserContent(title, options, type, images, visionEnabled) }
   ];
+  const logBase = { questionType: type, title, options, images: images.length };
 
+  let candidates: LlmConfig[];
   try {
-    const { content, model, latencyMs, usage } = await callLlm(env, messages, llmConfig);
-    const parsed = parseLlmAnswer(content, type);
-    const reason = parsed.reason;
-    // 选择/判断题的字母答案换成选项原文, OCS 才能稳定匹配 (见 lettersToOptionTexts)
-    const answers = type === 'completion' ? parsed.answers : lettersToOptionTexts(parsed.answers, options);
-    const status = answers.length > 0 ? 'ok' : 'no_answer';
-    await log({
-      questionType: type,
-      title,
-      options,
-      images: images.length,
-      model,
-      answers: JSON.stringify({ answers, reason }),
-      reason,
-      latencyMs,
-      status,
-      error: '',
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      cachedTokens: usage.cachedTokens,
-      thinkEffort
-    });
-    if (status === 'no_answer') {
-      return json({ code: 1, msg: `无法作答: ${reason || '模型未给出答案'}` });
-    }
-    return json({
-      code: 0,
-      data: {
-        question: title,
-        answers,
-        reason,
-        model,
-        latency_ms: latencyMs,
-        usage: {
-          prompt_tokens: usage.promptTokens,
-          completion_tokens: usage.completionTokens,
-          cached_tokens: usage.cachedTokens
-        }
-      }
-    });
+    candidates = resolveCandidates(body);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await log({
-      questionType: type,
-      title,
-      options,
-      images: images.length,
-      model: llmConfig.model || '',
+      ...logBase,
+      model: typeof body.model === 'string' ? body.model : '',
       answers: '',
       reason: '',
       latencyMs: 0,
@@ -222,8 +193,90 @@ async function handleSearch(request: Request, env: Env): Promise<Response> {
       promptTokens: 0,
       completionTokens: 0,
       cachedTokens: 0,
-      thinkEffort
+      thinkEffort,
+      baseUrl: '',
+      fallbacks: []
     });
-    return json({ code: 1, msg: `答题失败: ${message.slice(0, 300)}` });
+    // 校验问题需要一次列全, 不截断
+    return json({ code: 1, msg: `答题失败: ${message}` });
   }
+
+  // 总耗时从第一次尝试开始计, 与总时限 LLM_TIMEOUT_MS 对应
+  const started = Date.now();
+  const outcome = await callWithFailover(env, messages, candidates, started + llmTimeoutMs(env));
+  const latencyMs = Date.now() - started;
+
+  if (!outcome.ok) {
+    // 日志主字段记录最后一次尝试, 更早的失败记入 fallbacks
+    const last = outcome.failed[outcome.failed.length - 1];
+    await log({
+      ...logBase,
+      model: last?.model ?? '',
+      answers: '',
+      reason: '',
+      latencyMs,
+      status: 'error',
+      error: last?.error ?? '',
+      promptTokens: 0,
+      completionTokens: 0,
+      cachedTokens: 0,
+      thinkEffort: last?.thinkEffort ?? '',
+      baseUrl: last?.baseUrl ?? '',
+      fallbacks: outcome.failed.slice(0, -1)
+    });
+    return json({ code: 1, msg: `答题失败: ${describeFailure(outcome.failed, candidates.length)}` });
+  }
+
+  const { result, candidate, index, fallbacks } = outcome;
+  const parsed = parseLlmAnswer(result.content, type);
+  const reason = parsed.reason;
+  // 选择/判断题的字母答案换成选项原文, OCS 才能稳定匹配 (见 lettersToOptionTexts)
+  const answers = type === 'completion' ? parsed.answers : lettersToOptionTexts(parsed.answers, options);
+  // 模型正常返回但答案为空不换候选: 换模型多半同样答不出, 只会多等一轮
+  const status = answers.length > 0 ? 'ok' : 'no_answer';
+  await log({
+    ...logBase,
+    model: candidate.model,
+    answers: JSON.stringify({ answers, reason }),
+    reason,
+    latencyMs,
+    status,
+    error: '',
+    promptTokens: result.usage.promptTokens,
+    completionTokens: result.usage.completionTokens,
+    cachedTokens: result.usage.cachedTokens,
+    thinkEffort: candidate.thinkEffort || '',
+    baseUrl: candidate.baseUrl,
+    fallbacks
+  });
+  if (status === 'no_answer') {
+    return json({ code: 1, msg: `无法作答: ${reason || '模型未给出答案'}` });
+  }
+  return json({
+    code: 0,
+    data: {
+      question: title,
+      answers,
+      reason,
+      model: candidate.model,
+      latency_ms: latencyMs,
+      usage: {
+        prompt_tokens: result.usage.promptTokens,
+        completion_tokens: result.usage.completionTokens,
+        cached_tokens: result.usage.cachedTokens
+      },
+      tags: buildAnswerTags(candidate, index, fallbacks)
+    }
+  });
+}
+
+/**
+ * 全部候选失败时显示在 OCS 面板的原因。只有一个候选时与引入 providers 之前一致;
+ * 多个候选逐个列出简短错误, 总时限用完导致后面的候选未尝试时一并说明。
+ */
+function describeFailure(failed: FailedAttempt[], total: number): string {
+  if (total === 1 && failed.length === 1) return failed[0].error.slice(0, 300);
+  const list = failed.map((f) => `#${f.index} ${f.model}: ${f.error.slice(0, 100)}`).join('; ');
+  if (failed.length === total) return `全部 ${total} 个候选均失败: ${list}`;
+  return `已尝试的 ${failed.length} 个候选均失败, 其余 ${total - failed.length} 个因总时限 LLM_TIMEOUT_MS 用完未尝试: ${list}`;
 }

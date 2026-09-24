@@ -469,6 +469,12 @@ select.btn {
   color: var(--accent);
 }
 
+.pill-fallback {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--warn);
+}
+
 .list-empty {
   padding: 40px 20px;
   text-align: center;
@@ -681,6 +687,50 @@ select.btn {
   font-size: 12px;
   font-weight: 600;
   color: var(--accent);
+}
+
+.tag-fallback {
+  color: var(--warn);
+}
+
+.fallbacks {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fallback-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fallback {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 9px;
+  background: var(--raised);
+  overflow-wrap: anywhere;
+}
+
+.fallback-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.fallback-error {
+  font-size: 13px;
+  color: var(--err-fg);
+  line-height: 1.6;
 }
 
 .callout {

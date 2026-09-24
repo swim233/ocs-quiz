@@ -5,7 +5,9 @@ import {
   STATUS_LABEL,
   analyzeRow,
   formatLatency,
+  hostOf,
   latencyLevel,
+  parseFallbacks,
   plainText,
   timeParts,
   typeLabel,
@@ -28,6 +30,7 @@ export function Detail({ row, timeoutMs, onZoom }: { row: LogRow; timeoutMs: num
   const [rawOpen, setRawOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const view = useMemo(() => analyzeRow(row), [row]);
+  const fallbacks = useMemo(() => parseFallbacks(row.fallbacks), [row.fallbacks]);
   const tp = timeParts(row.ts);
 
   useEffect(() => {
@@ -62,6 +65,7 @@ export function Detail({ row, timeoutMs, onZoom }: { row: LogRow; timeoutMs: num
             {row.images} 张图
           </span>
         )}
+        {fallbacks.length > 0 && <span className="tag tag-fallback">降级 ×{fallbacks.length}</span>}
         <span className="muted mono">
           #{row.id} · {tp.date} {tp.time}
         </span>
@@ -128,6 +132,29 @@ export function Detail({ row, timeoutMs, onZoom }: { row: LogRow; timeoutMs: num
         </div>
       )}
 
+      {fallbacks.length > 0 && (
+        <div className="card fallbacks">
+          <span className="card-label">
+            {row.status === 'error' ? '更早失败的候选' : '此前失败的候选'} · {fallbacks.length} 个（按尝试顺序）
+          </span>
+          <ol className="fallback-list">
+            {fallbacks.map((f) => (
+              <li key={f.index} className="fallback">
+                <span className="fallback-head">
+                  <span className="mono">#{f.index}</span>
+                  <span className="mono">{f.model}</span>
+                  <span className="muted">· {hostOf(f.baseUrl)}</span>
+                  {f.thinkEffort && <span className="muted">· 思考 {f.thinkEffort}</span>}
+                  <span className="grow" />
+                  <span className="muted mono">{formatLatency(f.latencyMs)}</span>
+                </span>
+                <span className="fallback-error">{f.error || '—'}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
       <div className="info-row">
         <div className="card reason">
           <span className="card-label">模型理由</span>
@@ -141,6 +168,16 @@ export function Detail({ row, timeoutMs, onZoom }: { row: LogRow; timeoutMs: num
           <div className="meta-item span2">
             <span>模型</span>
             <span className="mono">{row.model || '—'}</span>
+          </div>
+          <div className="meta-item span2">
+            <span>服务商</span>
+            {row.base_url ? (
+              <span className="mono" title={row.base_url}>
+                {hostOf(row.base_url)}
+              </span>
+            ) : (
+              <span className="muted">未记录</span>
+            )}
           </div>
           <div className="meta-item span2">
             <span>请求 IP</span>

@@ -6,6 +6,7 @@
 - 支持单选、多选、判断、填空，图片题需要使用支持视觉输入的模型
 - 兼容所有 OpenAI 格式的接口，例如 OpenAI、DeepSeek、通义千问（阿里云百炼）、硅基流动
 - 模型不支持图片或 JSON 输出时，会自动降级重试
+- 可以配置多个备用服务商和 Key，当前的失败时按顺序自动换下一个
 - 自带日志页，可以查看每道题的题目、答案、理由、耗时和 token 用量
 - Cloudflare 免费套餐足够个人使用
 
@@ -128,7 +129,7 @@ OCS 运行在你自己的浏览器里，所以浏览器必须能访问到 Worker
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `LLM_TEMPERATURE` | `0` | 模型温度 |
-| `LLM_TIMEOUT_MS` | `110000` | 单次模型请求的超时时间（毫秒），见[常见问题](#超时)中的说明 |
+| `LLM_TIMEOUT_MS` | `110000` | 单次搜题的总时限（毫秒）。配置了[备用服务商](#可选配置备用服务商)时，所有尝试共享这个时限。见[常见问题](#超时)中的说明 |
 | `VISION_ENABLED` | `true` | 是否把题目中的图片发给模型；设为 `false` 时只发送文字 |
 | `LOG_ENABLED` | `true` | 是否记录日志；设为 `false` 时不写入 D1 |
 
@@ -141,6 +142,8 @@ git pull
 npm install && npm --prefix web install
 npm run deploy
 ```
+
+从旧版本更新后，旧的题库配置仍然可以正常答题。如果想在 OCS 的搜索结果中看到答案前的模型标签（见[配置备用服务商](#可选配置备用服务商)），需要[重新获取配置模板](#1-获取配置模板)，或者只把旧配置中的 `handler` 换成新模板中的。
 
 ---
 
@@ -178,7 +181,7 @@ https://<你的域名>/ocs-config.json
       "model": "",
       "thinkEffort": ""
     },
-    "handler": "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('#')] : [res.msg, undefined]"
+    "handler": "return (res)=> res.code === 0 ? [res.data.question, res.data.answers.join('#'), { ai: true, tags: res.data.tags }] : [res.msg, undefined]"
   }
 ]
 ```
@@ -211,6 +214,57 @@ https://<你的域名>/ocs-config.json
 ### 3. 粘贴到 OCS
 
 打开任意网课页面，在 OCS 悬浮窗中进入 **通用 → 全局设置 → 题库配置**，粘贴改好的 JSON，然后保存。
+
+### 可选：配置备用服务商
+
+在 `data` 中加一个 `providers` 字段，就可以配置多个备用的服务商和 Key。上面填的 `apiKey`、`baseUrl`、`model` 是首选；首选失败时（Key 无效、限流、余额不足、服务商报错、超时等），Worker 会按顺序尝试 `providers` 中的每个 Key，直到有一个成功为止：
+
+```json
+"data": {
+  "title": "${title}",
+  "options": "${options}",
+  "type": "${type}",
+  "apiKey": "sk-main",
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-chat",
+  "thinkEffort": "",
+  "providers": [
+    {
+      "baseUrl": "https://api.deepseek.com",
+      "keys": [
+        { "apiKey": "sk-backup", "model": "deepseek-chat" }
+      ]
+    },
+    {
+      "baseUrl": "https://api.openai.com/v1",
+      "keys": [
+        { "apiKey": "sk-openai-1", "model": "gpt-4o" },
+        { "apiKey": "sk-openai-2", "model": "o4-mini", "thinkEffort": "low" }
+      ]
+    }
+  ]
+}
+```
+
+- **尝试顺序**：先是上面的 `apiKey`/`baseUrl`/`model`，然后按 `providers` 数组的顺序，每组内按 `keys` 的顺序。上面三项也可以全部留空，只用 `providers`
+- **什么情况会换下一个**：当前的请求报错时。模型正常返回但表示无法作答时不会换，因为换个模型多半也答不出
+- **同一个 `baseUrl` 在 `providers` 中只能出现一次**，比较时忽略末尾的 `/`。它可以和上面的 `baseUrl` 相同，比如给同一个服务商配一个备用 Key
+- **`thinkEffort` 每个 Key 单独设置**，不写就是不设置，不会沿用上面的 `thinkEffort`
+- **不要写 `null`**：OCS 遇到 `null` 会在发出请求前直接报错。不需要的字段请填 `""` 或者不写
+- **配置写错时整体报错**：请求时会检查全部配置，有错就一次列出所有问题（如 `providers[1].keys[0] 缺少 model`，序号从 0 开始），不会发出任何请求
+- **总时限共享**：所有尝试共用 `LLM_TIMEOUT_MS`（默认 110 秒），时间用完后剩下的候选不再尝试
+
+**怎么看是哪个模型答的**：Worker 改变不了 OCS 脚本本身的行为，只是在返回结果里带上标签。新模板的 `handler` 会按 OCS 支持的格式（返回值的第三项 `{ ai, tags }`）把标签交给 OCS，由 OCS 显示在「🔎 搜索结果」和「🔎 在线搜题」的结果中，位置在答案前面：
+
+- 作答的模型名，鼠标悬停可以看到服务商域名和思考强度
+- 发生降级时多出一个「降级 #N」，N 是作答候选的序号（按尝试顺序从 1 开始，上面的平铺字段填了就是 #1），鼠标悬停可以看到前面的候选失败的原因
+- OCS 自带的「AI」标签，对应 `handler` 中的 `ai: true`
+
+以上是按 OCS 4.15 的源码核对的，其他版本的显示方式可能不同。答案命中 OCS 本地的题库缓存时，OCS 显示的是缓存内容，不会带这些标签。
+
+全部候选都失败时，Worker 返回的错误信息会逐个列出每个候选的错误，同样由 OCS 显示在搜索结果中。
+
+订阅链接方式不支持 `providers`，请使用粘贴 JSON 的方式。
 
 ### 另一种方式：填写订阅链接
 
@@ -269,7 +323,9 @@ OCS 官方提供一个 `@connect` 中带 `*` 通配符的版本，可以请求�
 
 浏览器打开 `https://<你的域名>/`，输入 `WEBUI_TOKEN` 登录（注意不是 `AUTH_TOKEN`），就能看到最近的答题记录，包括题目、选项、图片、模型给出的答案与理由、耗时、token 用量和请求方 IP。日志页支持按状态筛选、全文搜索，默认每 3 秒自动刷新。
 
-日志中不包含 API Key。没有设置 `WEBUI_TOKEN` 时，日志页会提示「服务端未配置 WEBUI_TOKEN」，按提示设置即可。
+配置了[备用服务商](#可选配置备用服务商)时，发生过降级的记录会标出「降级 ×N」，详情页会列出每次失败的尝试（序号、模型、服务商、错误和耗时）。
+
+日志中不包含 API Key。但服务商返回的错误信息会原样记录，有的服务商会在错误信息中回显打码后的 Key 片段。没有设置 `WEBUI_TOKEN` 时，日志页会提示「服务端未配置 WEBUI_TOKEN」，按提示设置即可。
 
 ---
 
@@ -288,7 +344,7 @@ OCS 只要收到的不是 HTTP 200 响应，都会显示这个提示，且不会
 
 ### 超时
 
-较新版本的 OCS 可以在高级设置中调整「搜题最大耗时」（默认 120 秒）。Worker 默认的模型超时时间为 110 秒，比 OCS 的限制略短，这样超时后 OCS 面板能显示具体原因。
+较新版本的 OCS 可以在高级设置中调整「搜题最大耗时」（默认 120 秒）。Worker 默认的总时限为 110 秒，比 OCS 的限制略短，这样超时后 OCS 面板能显示具体原因。配置了备用服务商时，所有尝试共享这 110 秒，前面的候选用掉的时间越多，留给后面的就越少。
 
 旧版 OCS（4.11.8 之前）固定 30 秒超时。请升级 OCS，或把 `wrangler.toml` 中的 `LLM_TIMEOUT_MS` 改为 `25000` 左右后重新部署。
 
@@ -327,7 +383,8 @@ curl -X POST https://<你的域名>/api/search \
     "reason": "1+1 等于 2",
     "model": "<模型名称>",
     "latency_ms": 1234,
-    "usage": { "prompt_tokens": 120, "completion_tokens": 30, "cached_tokens": 0 }
+    "usage": { "prompt_tokens": 120, "completion_tokens": 30, "cached_tokens": 0 },
+    "tags": [{ "text": "<模型名称>", "title": "api.deepseek.com", "color": "gray" }]
   }
 }
 ```
@@ -349,6 +406,8 @@ npm run build:web          # 构建日志页前端，修改前端后需要重新
 npm run dev                # 启动 Worker：http://localhost:8790
 node scripts/stub-llm.mjs  # 可选：启动一个假的大模型服务，baseUrl 填 http://localhost:8788/v1
 ```
+
+假的大模型服务接受任意以 `/chat/completions` 结尾的路径，所以 `http://localhost:8788/a/v1` 和 `http://localhost:8788/b/v1` 可以当作两个不同的服务商。apiKey 填 `fail-401`、`fail-429`、`fail-500` 可以模拟对应的错误，填 `slow-<毫秒>` 可以模拟慢响应，用来测试降级和总时限。
 
 ## 许可证
 

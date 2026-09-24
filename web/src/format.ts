@@ -19,6 +19,42 @@ export interface LogRow {
   think_effort?: string;
   /** 请求方 IP; 新增该列之前的旧记录为空串 */
   ip?: string;
+  /** 最后一次尝试的候选的 baseUrl; 旧记录缺失或为空串 */
+  base_url?: string;
+  /** 此前失败的尝试, JSON 数组 (见 parseFallbacks); 无降级为空串 */
+  fallbacks?: string;
+}
+
+/** 一次失败的尝试 (与服务端 FailedAttempt 保持同步) */
+export interface Fallback {
+  index: number;
+  baseUrl: string;
+  model: string;
+  thinkEffort: string;
+  error: string;
+  latencyMs: number;
+}
+
+/** 空串、旧记录缺失或无法解析时返回空数组; 忽略不是对象的元素 */
+export function parseFallbacks(raw?: string): Fallback[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((f): f is Fallback => typeof f === 'object' && f !== null && !Array.isArray(f))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 列表与详情中展示 baseUrl 时只取域名 */
+export function hostOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl;
+  }
 }
 
 export const STATUS_LABEL: Record<string, string> = {

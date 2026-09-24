@@ -6,6 +6,7 @@ import {
   dayLabel,
   formatLatency,
   latencyLevel,
+  parseFallbacks,
   plainText,
   timeParts,
   typeLabel,
@@ -71,6 +72,7 @@ function ListItem({ row, on, fresh, index, scrollOnSelect, timeoutMs, onSelect }
   const { summary } = analyzeRow(row);
   const failed = row.status === 'error' || row.status === 'unauthorized';
   const effort = row.think_effort || '';
+  const fallbacks = parseFallbacks(row.fallbacks).length;
   const level = latencyLevel(row.latency_ms, timeoutMs);
   return (
     <button
@@ -92,6 +94,11 @@ function ListItem({ row, on, fresh, index, scrollOnSelect, timeoutMs, onSelect }
           </span>
         )}
         {effort && <span className="pill pill-effort">思考 {effort}</span>}
+        {fallbacks > 0 && (
+          <span className="pill pill-fallback" title={`换过 ${fallbacks} 个候选`}>
+            降级 ×{fallbacks}
+          </span>
+        )}
         <span className="grow" />
         <span className="mono">{timeParts(row.ts).time}</span>
       </span>
